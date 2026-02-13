@@ -4,7 +4,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
@@ -20,6 +20,7 @@ from app.importers import import_companies_csv
 from app.knowledge import enrich_and_write_hypothesis_card, write_hypothesis_card
 from app.models import Base, Company, Document, Hypothesis, ICP, SubVertical, TAL, TALAccount, VPPoint, Vertical, Call, User
 from app.settings import get_secret_key
+from app.supabase_client import insert_row
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -879,4 +880,41 @@ async def file_download(
         return RedirectResponse(url="/files", status_code=303)
 
     return FileResponse(path, filename=path.name)
+
+
+@app.post("/debug/supabase-insert")
+async def debug_supabase_insert(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    try:
+        user = await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            body = {}
+    except Exception:
+        body = {}
+
+    table = str(body.get("table", "smartlead_events_raw")).strip() or "smartlead_events_raw"
+    record = body.get("record")
+    if not isinstance(record, dict):
+        record = {
+            "source": "manual_debug",
+            "payload": body if body else {"message": "supabase ping"},
+            "created_at": dt.datetime.utcnow().isoformat(),
+        }
+
+    try:
+        rows = insert_row(table, record)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Supabase insert failed: {exc}") from exc
+
+    return {"ok": True, "table": table, "inserted_rows": len(rows), "data": rows}
 
