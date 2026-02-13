@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">TAL — {{ tal.name or ("TAL for hypothesis #" ~ h.id) }}</div>
+        <div class="muted">Hypothesis: <a href="/hypotheses/{{ h.id }}">#{{ h.id }} — {{ h.title }}</a></div>
+      </div>
+      <div class="row" style="gap:8px;">
+        <a class="btn secondary" href="/hypotheses/{{ h.id }}">Back to hypothesis</a>
+      </div>
+    </div>
+
+    <form method="post" action="/hypotheses/{{ h.id }}/tal/add" style="margin-top: 12px;">
+      <div class="grid">
+        <div style="grid-column: 1 / -1;">
+          <label>Add company to TAL (by company id)</label>
+          <input name="company_id" placeholder="e.g. 123" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Fit reason</label>
+          <textarea name="fit_reason"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Pain hint</label>
+          <textarea name="pain_hint"></textarea>
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <button class="btn" type="submit">Add</button>
+        <span class="muted" style="font-size: 13px;">Подсказка: найди компанию в разделе Companies и возьми её id.</span>
+      </div>
+    </form>
+
+    <div style="margin-top: 16px;">
+      <div class="muted">Accounts: <span class="pill">{{ accounts|length }}</span></div>
+      {% if accounts|length == 0 %}
+        <div class="muted" style="margin-top: 8px;">Пока TAL пуст.</div>
+      {% else %}
+        <ul class="list" style="margin-top: 8px;">
+          {% for a in accounts %}
+            <li>
+              <div class="row">
+                <div>
+                  <div style="font-weight:700;">{{ a.company.name or "—" }}</div>
+                  <div class="muted" style="font-size: 13px;">
+                    Company id: {{ a.company_id }}
+                    · Status: <span class="pill">{{ a.status }}</span>
+                    · Website: {{ a.company.website or "—" }}
+                  </div>
+                </div>
+              </div>
+              {% if a.fit_reason %}
+                <div class="muted" style="font-size: 13px; margin-top: 6px; white-space: pre-wrap;">Fit: {{ a.fit_reason }}</div>
+              {% endif %}
+              {% if a.pain_hint %}
+                <div class="muted" style="font-size: 13px; margin-top: 6px; white-space: pre-wrap;">Pain hint: {{ a.pain_hint }}</div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

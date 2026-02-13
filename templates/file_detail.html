@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div style="min-width:0;">
+        <div style="font-weight:700; font-size:16px; overflow:hidden; text-overflow: ellipsis; white-space: nowrap;">{{ doc.rel_path }}</div>
+        <div class="muted" style="font-size: 13px;">
+          <span class="pill">{{ doc.kind }}</span>
+          {% if doc.ext %}<span class="pill">.{{ doc.ext }}</span>{% endif %}
+          <span class="muted">{{ doc.size_bytes }} bytes</span>
+        </div>
+      </div>
+      <div class="row" style="gap: 8px;">
+        <a class="btn secondary" href="/files">Back</a>
+        <a class="btn" href="/files/{{ doc.id }}/download">Download</a>
+      </div>
+    </div>
+
+    {% if preview %}
+      <div style="margin-top: 12px;">
+        <div class="muted" style="font-size: 13px; margin-bottom: 8px;">Preview (first {{ preview_bytes }} bytes)</div>
+        <pre class="card" style="white-space: pre-wrap; overflow-x: auto; background: rgba(0,0,0,0.25);">{{ preview }}</pre>
+      </div>
+    {% else %}
+      <div style="margin-top: 12px;" class="muted">Preview недоступен для этого типа файла — можно скачать.</div>
+    {% endif %}
+  </div>
+{% endblock %}
+

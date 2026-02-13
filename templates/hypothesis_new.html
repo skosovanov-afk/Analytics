@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">New hypothesis</div>
+        <div class="muted">Owner: {{ user.email }} ({{ user.role }})</div>
+      </div>
+      <div>
+        <a class="btn secondary" href="/hypotheses">Back</a>
+      </div>
+    </div>
+
+    <form method="post" action="/hypotheses/new" style="margin-top: 12px;">
+      <div class="grid">
+        <div style="grid-column: 1 / -1;">
+          <label>Title *</label>
+          <input name="title" required />
+        </div>
+        <div>
+          <label>VP Point</label>
+          <select name="vp_point_id">
+            <option value="">—</option>
+            {% for v in vp_points %}
+              <option value="{{ v.id }}">{{ v.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>ICP</label>
+          <select name="icp_id">
+            <option value="">—</option>
+            {% for i in icps %}
+              <option value="{{ i.id }}">{{ i.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Vertical / Sub-vertical</label>
+          <select name="sub_vertical_id">
+            <option value="">—</option>
+            {% for s in sub_verticals %}
+              <option value="{{ s.id }}">#{{ s.id }} (vertical_id={{ s.vertical_id }}) — {{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Channel</label>
+          <input name="channel" placeholder="outreach / marketing / bizdev" />
+        </div>
+        <div>
+          <label>Status</label>
+          <select name="status">
+            <option value="draft">draft</option>
+            <option value="running">running</option>
+            <option value="success">success</option>
+            <option value="fail">fail</option>
+            <option value="killed">killed</option>
+          </select>
+        </div>
+        <div>
+          <label>Start date</label>
+          <input name="start_date" type="date" />
+        </div>
+        <div>
+          <label>End date</label>
+          <input name="end_date" type="date" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Segment / ICP</label>
+          <textarea name="segment"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Problem</label>
+          <textarea name="problem"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Assumption</label>
+          <textarea name="assumption"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Pain (framework)</label>
+          <textarea name="pain" placeholder="Что именно болит (конкретно)"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Expected signal (framework)</label>
+          <textarea name="expected_signal" placeholder="Как поймём, что правда (измеримо)"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Disqualifiers (framework)</label>
+          <textarea name="disqualifiers" placeholder="Когда сразу нет (по пунктам)"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Success metric</label>
+          <input name="success_metric" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Minimal signal</label>
+          <input name="minimal_signal" />
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;" class="row">
+        <button class="btn" type="submit">Create</button>
+        <span class="muted" style="font-size: 13px;">Создаст запись в SQLite + markdown карточку в <code>knowledge/hypotheses</code>.</span>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+

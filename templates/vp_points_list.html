@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">VP Points</div>
+        <div class="muted">VP Matrix (атомарные куски ценности)</div>
+      </div>
+    </div>
+
+    <form method="post" action="/vp/new" style="margin-top: 12px;">
+      <div class="grid">
+        <div style="grid-column: 1 / -1;">
+          <label>VP Point name *</label>
+          <input name="name" required placeholder="e.g. Lower fees & less holds" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Job to be Done</label>
+          <textarea name="job_to_be_done"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Pain / Friction</label>
+          <textarea name="pain_friction"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Outcome / Metric</label>
+          <textarea name="outcome_metric"></textarea>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button class="btn" type="submit">Create VP Point</button>
+      </div>
+    </form>
+
+    <div style="margin-top: 16px;">
+      {% if items|length == 0 %}
+        <div class="muted">Пока пусто.</div>
+      {% else %}
+        <ul class="list">
+          {% for v in items %}
+            <li>
+              <div style="font-weight:700;">{{ v.name }}</div>
+              <div class="muted" style="font-size: 13px; white-space: pre-wrap;">{{ v.outcome_metric }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

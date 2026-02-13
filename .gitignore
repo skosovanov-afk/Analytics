@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.venv_new/
+.DS_Store
+product.db
+*.sqlite
+*.pyc
+uploads/
+ExportBlock-*/
+admin_cookies.txt
+cookies.txt
+user_cookies.txt
+jar.txt
+install_python.sh
+

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">Metrics — hypothesis #{{ h.id }}</div>
+        <div class="muted"><a href="/hypotheses/{{ h.id }}">Back to hypothesis</a></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;" class="grid">
+      <div class="card">
+        <div style="font-weight:700;">Counts</div>
+        <div class="muted">Calls: <span class="pill">{{ m.total_calls }}</span></div>
+        <div class="muted">Pain confirmed: <span class="pill">{{ m.pain_confirmed }}</span></div>
+        <div class="muted">Interest: <span class="pill">{{ m.interest }}</span></div>
+        <div class="muted">Follow-ups: <span class="pill">{{ m.follow_up }}</span></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;">Rates</div>
+        <div class="muted">Pain confirmed rate: <span class="pill">{{ m.pain_rate }}%</span></div>
+        <div class="muted">Interest rate: <span class="pill">{{ m.interest_rate }}%</span></div>
+        <div class="muted">Follow-up rate: <span class="pill">{{ m.follow_rate }}%</span></div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1;">
+        <div style="font-weight:700;">Time-to-signal (proxy)</div>
+        <div class="muted">First pain-confirmed call number: <span class="pill">{{ m.first_pain_call or "—" }}</span></div>
+        <div class="muted">First follow-up call number: <span class="pill">{{ m.first_follow_call or "—" }}</span></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;" class="card">
+      <div style="font-weight:700;">Decision helper</div>
+      <div class="muted" style="white-space: pre-wrap;">{{ decision_hint }}</div>
+    </div>
+  </div>
+{% endblock %}
+

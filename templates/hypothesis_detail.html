@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">#{{ h.id }} — {{ h.title }}</div>
+        <div class="muted">
+          Status: <span class="pill">{{ h.status }}</span>
+          · Channel: <span class="pill">{{ h.channel or "—" }}</span>
+          · Owner: {{ h.owner_user_id }}
+        </div>
+      </div>
+      <div class="row" style="gap: 8px;">
+        <a class="btn secondary" href="/hypotheses">Back</a>
+          <a class="btn secondary" href="/hypotheses/{{ h.id }}/tal">TAL</a>
+          <a class="btn secondary" href="/hypotheses/{{ h.id }}/calls">Calls</a>
+          <a class="btn secondary" href="/hypotheses/{{ h.id }}/metrics">Metrics</a>
+        <form method="post" action="/hypotheses/{{ h.id }}/refresh_card" style="margin:0">
+          <button class="btn" type="submit">Refresh card</button>
+        </form>
+      </div>
+    </div>
+
+    <div style="margin-top: 14px;" class="grid">
+      <div>
+        <div style="font-weight:700; margin-bottom: 6px;">Segment / ICP</div>
+        <div class="muted" style="white-space: pre-wrap;">{{ h.segment or "" }}</div>
+      </div>
+      <div>
+        <div style="font-weight:700; margin-bottom: 6px;">Dates</div>
+        <div class="muted">Start: {{ h.start_date or "—" }}</div>
+        <div class="muted">End: {{ h.end_date or "—" }}</div>
+      </div>
+        <div style="grid-column: 1 / -1;">
+          <div style="font-weight:700; margin-bottom: 6px;">Framework (VP / ICP / Vertical/Sub)</div>
+          <div class="muted">VP Point: {{ h.vp_point.name if h.vp_point else "—" }}</div>
+          <div class="muted">ICP: {{ h.icp.name if h.icp else "—" }}</div>
+          <div class="muted">Sub-vertical: {{ h.sub_vertical.name if h.sub_vertical else "—" }}</div>
+        </div>
+      <div style="grid-column: 1 / -1;">
+        <div style="font-weight:700; margin-bottom: 6px;">Problem</div>
+        <div class="muted" style="white-space: pre-wrap;">{{ h.problem or "" }}</div>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <div style="font-weight:700; margin-bottom: 6px;">Assumption</div>
+        <div class="muted" style="white-space: pre-wrap;">{{ h.assumption or "" }}</div>
+      </div>
+        <div style="grid-column: 1 / -1;">
+          <div style="font-weight:700; margin-bottom: 6px;">Pain / Signal / Disqualifiers</div>
+          <div class="muted" style="white-space: pre-wrap;">Pain: {{ h.pain or "—" }}</div>
+          <div class="muted" style="white-space: pre-wrap;">Expected signal: {{ h.expected_signal or "—" }}</div>
+          <div class="muted" style="white-space: pre-wrap;">Disqualifiers: {{ h.disqualifiers or "—" }}</div>
+        </div>
+      <div style="grid-column: 1 / -1;">
+        <div style="font-weight:700; margin-bottom: 6px;">Metrics</div>
+        <div class="muted">Success metric: {{ h.success_metric or "—" }}</div>
+        <div class="muted">Minimal signal: {{ h.minimal_signal or "—" }}</div>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <div style="font-weight:700; margin-bottom: 6px;">Knowledge card</div>
+        {% if card_filename %}
+          <div class="muted"><code>knowledge/hypotheses/{{ card_filename }}</code></div>
+        {% else %}
+          <div class="muted">Пока не найдена (нажми “Refresh card”).</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

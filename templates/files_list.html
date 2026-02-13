@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">Files</div>
+        <div class="muted">Индекс файлов проекта (поиск/preview/download)</div>
+      </div>
+      <div class="row" style="gap: 8px;">
+        {% if can_reindex %}
+          <form method="post" action="/files/reindex" style="margin:0">
+            <button class="btn" type="submit">Reindex</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="get" action="/files" style="margin-top: 12px;">
+      <div class="grid">
+        <div>
+          <label>Search (path)</label>
+          <input name="q" value="{{ q or '' }}" placeholder="e.g. ExportBlock / Companies.csv" />
+        </div>
+        <div>
+          <label>Kind</label>
+          <select name="kind">
+            <option value="" {% if not kind %}selected{% endif %}>all</option>
+            {% for k in kinds %}
+              <option value="{{ k }}" {% if kind==k %}selected{% endif %}>{{ k }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-top: 10px;" class="row">
+        <button class="btn secondary" type="submit">Filter</button>
+        <a class="btn secondary" href="/files">Reset</a>
+        {% if last_reindex %}
+          <span class="muted" style="font-size: 13px;">Last reindex: +{{ last_reindex.created }} updated {{ last_reindex.updated }} deleted {{ last_reindex.deleted or 0 }} scanned {{ last_reindex.total_scanned }}</span>
+        {% endif %}
+      </div>
+    </form>
+
+    <div style="margin-top: 12px;">
+      <div class="muted" style="font-size: 13px; margin-bottom: 8px;">
+        Total indexed: <span class="pill">{{ total }}</span>
+      </div>
+      {% if docs|length == 0 %}
+        <div class="muted">Пока нет записей. {% if can_reindex %}Нажми “Reindex”.{% else %}Попроси админа проиндексировать.{% endif %}</div>
+      {% else %}
+        <ul class="list">
+          {% for d in docs %}
+            <li class="row">
+              <div style="min-width: 0;">
+                <div style="font-weight:700; overflow:hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  <a href="/files/{{ d.id }}">{{ d.rel_path }}</a>
+                </div>
+                <div class="muted" style="font-size: 13px;">
+                  <span class="pill">{{ d.kind }}</span>
+                  {% if d.ext %}<span class="pill">.{{ d.ext }}</span>{% endif %}
+                  <span class="muted">{{ d.size_bytes }} bytes</span>
+                </div>
+              </div>
+              <div class="row" style="gap: 8px;">
+                <a class="btn secondary" href="/files/{{ d.id }}">Open</a>
+                <a class="btn secondary" href="/files/{{ d.id }}/download">Download</a>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

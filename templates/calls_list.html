@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">Calls — hypothesis #{{ h.id }}</div>
+        <div class="muted"><a href="/hypotheses/{{ h.id }}">Back to hypothesis</a></div>
+      </div>
+    </div>
+
+    <form method="post" action="/hypotheses/{{ h.id }}/calls/new" style="margin-top: 12px;">
+      <div class="grid">
+        <div>
+          <label>Date</label>
+          <input name="call_date" type="date" />
+        </div>
+        <div>
+          <label>Severity (1-5)</label>
+          <select name="severity">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>TAL account (optional)</label>
+          <select name="tal_account_id">
+            <option value="">—</option>
+            {% for a in tal_accounts %}
+              <option value="{{ a.id }}">{{ a.company.name }} (company_id={{ a.company_id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Summary</label>
+          <textarea name="summary"></textarea>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Transcript URL</label>
+          <input name="transcript_url" placeholder="https://..." />
+        </div>
+        <div style="grid-column: 1 / -1;" class="row" style="justify-content:flex-start;">
+          <label style="margin:0; display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" name="pain_confirmed" value="1" style="width:auto;" />
+            Pain confirmed
+          </label>
+          <label style="margin:0; display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" name="interest" value="1" style="width:auto;" />
+            Interest
+          </label>
+          <label style="margin:0; display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" name="follow_up" value="1" style="width:auto;" />
+            Follow-up
+          </label>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Disqualifier (optional)</label>
+          <input name="disqualifier" placeholder="e.g. locked contract / not decision-maker" />
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button class="btn" type="submit">Add call</button>
+      </div>
+    </form>
+
+    <div style="margin-top: 16px;">
+      <div class="muted">Total calls: <span class="pill">{{ calls|length }}</span></div>
+      {% if calls|length == 0 %}
+        <div class="muted" style="margin-top: 8px;">Пока нет звонков.</div>
+      {% else %}
+        <ul class="list" style="margin-top: 8px;">
+          {% for c in calls %}
+            <li>
+              <div class="row">
+                <div>
+                  <div style="font-weight:700;">Call #{{ c.id }}{% if c.call_date %} — {{ c.call_date }}{% endif %}</div>
+                  <div class="muted" style="font-size:13px;">
+                    Pain: <span class="pill">{{ 'Y' if c.pain_confirmed else 'N' }}</span>
+                    · Interest: <span class="pill">{{ 'Y' if c.interest else 'N' }}</span>
+                    · Follow-up: <span class="pill">{{ 'Y' if c.follow_up else 'N' }}</span>
+                    · Severity: <span class="pill">{{ c.severity }}</span>
+                  </div>
+                </div>
+                <div class="muted" style="font-size:13px;">
+                  {% if c.company_ref %}{{ c.company_ref.name }}{% endif %}
+                </div>
+              </div>
+              {% if c.summary %}
+                <div class="muted" style="margin-top: 6px; white-space: pre-wrap; font-size:13px;">{{ c.summary }}</div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

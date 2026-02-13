@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">Hypotheses</div>
+        <div class="muted">Пользователь: {{ user.email }} · роль: <span class="pill">{{ user.role }}</span></div>
+      </div>
+      <div class="row" style="gap: 8px;">
+        <a class="btn" href="/hypotheses/new">+ New</a>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      {% if hypotheses|length == 0 %}
+        <div class="muted">Пока нет гипотез.</div>
+      {% else %}
+        <ul class="list">
+          {% for h in hypotheses %}
+            <li class="row">
+              <div>
+                <div style="font-weight:700;">
+                  <a href="/hypotheses/{{ h.id }}">#{{ h.id }} — {{ h.title }}</a>
+                </div>
+                <div class="muted" style="font-size: 13px;">
+                  Channel: {{ h.channel }} · Status: <span class="pill">{{ h.status }}</span>
+                </div>
+              </div>
+              <div class="muted" style="font-size: 13px;">Owner: {{ h.owner_user_id }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

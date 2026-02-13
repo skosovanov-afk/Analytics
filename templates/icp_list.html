@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:700; font-size:16px;">ICP</div>
+        <div class="muted">Роль + масштаб + контекст решения (без индустрии)</div>
+      </div>
+    </div>
+
+    <form method="post" action="/icp/new" style="margin-top: 12px;">
+      <div class="grid">
+        <div style="grid-column: 1 / -1;">
+          <label>ICP name *</label>
+          <input name="name" required placeholder="e.g. Affiliate Manager ($500k+/mo payouts)" />
+        </div>
+        <div>
+          <label>Role</label>
+          <input name="role" placeholder="e.g. Affiliate Manager" />
+        </div>
+        <div>
+          <label>Scale</label>
+          <input name="scale" placeholder="e.g. $500k+/mo payouts" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label>Decision context</label>
+          <textarea name="decision_context"></textarea>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button class="btn" type="submit">Create ICP</button>
+      </div>
+    </form>
+
+    <div style="margin-top: 16px;">
+      {% if items|length == 0 %}
+        <div class="muted">Пока пусто.</div>
+      {% else %}
+        <ul class="list">
+          {% for i in items %}
+            <li>
+              <div style="font-weight:700;">{{ i.name }}</div>
+              <div class="muted" style="font-size: 13px;">Role: {{ i.role or "—" }} · Scale: {{ i.scale or "—" }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

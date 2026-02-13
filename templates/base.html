@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{{ title or "Product MVP" }}</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      :root { color-scheme: light; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0b1220; color: #e8eefc; }
+      a { color: #9cc2ff; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+      .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; padding: 16px; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+      .muted { color: rgba(232,238,252,0.75); }
+      input, textarea, select { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #e8eefc; }
+      textarea { min-height: 90px; }
+      label { display: block; font-size: 12px; color: rgba(232,238,252,0.8); margin-bottom: 6px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+      .btn { display: inline-block; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14); background: rgba(156,194,255,0.15); color: #e8eefc; cursor: pointer; }
+      .btn:hover { background: rgba(156,194,255,0.22); }
+      .btn.secondary { background: rgba(255,255,255,0.06); }
+      .btn.secondary:hover { background: rgba(255,255,255,0.10); }
+      .list { list-style: none; padding: 0; margin: 0; }
+      .list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.10); }
+      .pill { font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); }
+      .top { margin-bottom: 16px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top row">
+        <div>
+          <div style="font-weight:700; font-size: 18px;">Product — Hypotheses MVP</div>
+          <div class="muted" style="font-size: 13px;">FastAPI + SQLite (async) + Markdown knowledge cards</div>
+        </div>
+        <div class="row" style="gap: 8px;">
+          <a class="btn secondary" href="/">Home</a>
+          <a class="btn secondary" href="/hypotheses">Hypotheses</a>
+          <a class="btn secondary" href="/vp">VP</a>
+          <a class="btn secondary" href="/icp">ICP</a>
+          <a class="btn secondary" href="/verticals">Verticals</a>
+          <a class="btn secondary" href="/companies">Companies</a>
+          <a class="btn secondary" href="/files">Files</a>
+          {% if request.session.get("user_id") %}
+            <form method="post" action="/logout" style="margin:0">
+              <button class="btn secondary" type="submit">Logout</button>
+            </form>
+          {% else %}
+            <a class="btn" href="/login">Login</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% block content %}{% endblock %}
+    </div>
+  </body>
+</html>
+
