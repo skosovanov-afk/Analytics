@@ -21,3 +21,19 @@ def insert_row(table: str, record: dict[str, Any]) -> list[dict[str, Any]]:
     client = get_supabase_client()
     response = client.table(table).insert(record).execute()
     return response.data or []
+
+
+def select_rows(
+    table: str,
+    limit: int | None = None,
+    order_by: str | None = None,
+    desc: bool = False,
+) -> list[dict[str, Any]]:
+    client = get_supabase_client()
+    query = client.table(table).select("*")
+    if order_by:
+        query = query.order(order_by, desc=desc)
+    if limit is not None:
+        query = query.limit(limit)
+    response = query.execute()
+    return response.data or []

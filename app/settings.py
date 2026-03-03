@@ -35,3 +35,13 @@ def get_supabase_service_role_key() -> str:
     _load_env_file()
     return os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
+
+def get_smartlead_api_key() -> str:
+    _load_env_file()
+    return os.environ.get("SMARTLEAD_API_KEY", "")
+
+
+def get_smartlead_base_url() -> str:
+    _load_env_file()
+    return os.environ.get("SMARTLEAD_BASE_URL", "https://server.smartlead.ai")
+

@@ -20,7 +20,8 @@ from app.importers import import_companies_csv
 from app.knowledge import enrich_and_write_hypothesis_card, write_hypothesis_card
 from app.models import Base, Company, Document, Hypothesis, ICP, SubVertical, TAL, TALAccount, VPPoint, Vertical, Call, User
 from app.settings import get_secret_key
-from app.supabase_client import insert_row
+from app.supabase_client import insert_row, select_rows
+from app.consistency_check import run_consistency_check
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -917,4 +918,102 @@ async def debug_supabase_insert(
         raise HTTPException(status_code=500, detail=f"Supabase insert failed: {exc}") from exc
 
     return {"ok": True, "table": table, "inserted_rows": len(rows), "data": rows}
+
+
+@app.get("/analytics/overview")
+async def analytics_overview(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    try:
+        await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    try:
+        rows = select_rows("v_smartlead_overall", limit=1)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Supabase query failed: {exc}") from exc
+
+    return {"ok": True, "source": "supabase", "data": rows[0] if rows else {}}
+
+
+@app.get("/analytics/by-campaign")
+async def analytics_by_campaign(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 50,
+):
+    try:
+        await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    safe_limit = max(1, min(500, int(limit)))
+    try:
+        rows = select_rows("v_smartlead_by_campaign", limit=safe_limit, order_by="sent_total", desc=True)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Supabase query failed: {exc}") from exc
+
+    return {"ok": True, "source": "supabase", "count": len(rows), "data": rows}
+
+
+@app.get("/analytics/by-touch")
+async def analytics_by_touch(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    try:
+        await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    try:
+        rows = select_rows("v_smartlead_by_touch", order_by="touch_number")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Supabase query failed: {exc}") from exc
+
+    return {"ok": True, "count": len(rows), "data": rows}
+
+
+@app.get("/analytics/daily")
+async def analytics_daily(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 90,
+):
+    try:
+        await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    safe_limit = max(1, min(3650, int(limit)))
+    try:
+        rows = select_rows("v_smartlead_daily", limit=safe_limit, order_by="date", desc=True)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Supabase query failed: {exc}") from exc
+
+    return {"ok": True, "count": len(rows), "data": rows}
+
+
+@app.get("/analytics/consistency-check")
+async def analytics_consistency_check(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    include_lead_rows: bool = True,
+):
+    try:
+        user = await get_current_user(request, db)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        result = run_consistency_check(include_lead_rows=include_lead_rows)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Consistency check failed: {exc}") from exc
+
+    return result
 
