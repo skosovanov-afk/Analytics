@@ -1,25 +1,16 @@
 import { NextResponse } from "next/server";
-
-type SupabaseUserResponse = { email?: string | null };
+import { parseCsvEnv } from "@/app/lib/smartlead";
+import {
+  getSupabaseUserFromAuthHeader,
+  getBearer,
+  isCronAuthorized,
+  postgrestHeadersFor,
+  postgrestJson,
+  type PostgrestHeaders
+} from "@/app/lib/supabase-server";
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-function getBearer(req: Request) {
-  const authHeader = String(req.headers.get("authorization") ?? "").trim();
-  const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
-  const gotSecret = String(req.headers.get("x-sync-secret") ?? "").trim();
-  return { authHeader, bearer, gotSecret };
-}
-
-function parseCsvEnv(name: string) {
-  const raw = String(process.env[name] ?? "").trim();
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
 }
 
 function ymdUtc(ms: number) {
@@ -38,62 +29,6 @@ function toMs(v: any): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-async function getSupabaseUserFromAuthHeader(authHeader: string | null) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    method: "GET",
-    headers: { apikey: supabaseAnonKey, Authorization: authHeader }
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as SupabaseUserResponse;
-}
-
-function isCronAuthorized(req: Request) {
-  // Vercel Cron adds `x-vercel-cron: 1` to scheduled requests.
-  const vercelCron = String(req.headers.get("x-vercel-cron") ?? "").trim();
-  if (vercelCron === "1" || vercelCron.toLowerCase() === "true") return true;
-  const cronSecret = String(process.env.CRON_SECRET ?? "").trim();
-  if (!cronSecret) return false;
-  const { bearer, gotSecret } = getBearer(req);
-  return bearer === cronSecret || gotSecret === cronSecret;
-}
-
-type PostgrestHeaders = { apikey: string; Authorization: string };
-
-function postgrestHeadersFor(authHeader: string, isCron: boolean): PostgrestHeaders {
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
-  if (isCron) {
-    if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY (required for cron)");
-    return { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` };
-  }
-  if (!supabaseAnonKey) throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  if (!authHeader) throw new Error("Missing Authorization");
-  return { apikey: supabaseAnonKey, Authorization: authHeader };
-}
-
-async function postgrestJson(h: PostgrestHeaders, method: string, path: string, body?: any, extraHeaders?: Record<string, string>) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const url = `${supabaseUrl}/rest/v1/${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: { ...h, ...(body != null ? { "Content-Type": "application/json" } : {}), ...(extraHeaders ?? {}) },
-    body: body != null ? JSON.stringify(body) : undefined
-  });
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-  if (!res.ok) throw new Error(String(json?.message || json?.error || text || "Supabase request failed"));
-  return json;
-}
 
 async function getSmartleadSyncState(h: PostgrestHeaders, createdBy: string | null) {
   const where = createdBy ? `created_by=eq.${encodeURIComponent(createdBy)}&` : "";

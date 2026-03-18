@@ -1,24 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-type SupabaseUserResponse = { email?: string | null };
+import { smartleadFetch } from "@/app/lib/smartlead";
+import { getSupabaseUserFromAuthHeader } from "@/app/lib/supabase-server";
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function getSupabaseUserFromAuthHeader(authHeader: string | null) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    method: "GET",
-    headers: { apikey: supabaseAnonKey, Authorization: authHeader }
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as SupabaseUserResponse;
 }
 
 function ymdAddDaysLocal(ymd: string, days: number) {
@@ -87,29 +73,6 @@ async function fetchSmartleadEventsForAudit(opts: {
     if (rows.length < 1000) break;
   }
   return out.slice(0, limit);
-}
-
-async function smartleadFetch(path: string, init?: RequestInit) {
-  const apiKey = String(process.env.SMARTLEAD_API_KEY ?? "").trim();
-  if (!apiKey) throw new Error("Missing SMARTLEAD_API_KEY");
-  const baseUrl = String(process.env.SMARTLEAD_BASE_URL ?? "https://server.smartlead.ai").trim().replace(/\/+$/g, "");
-  const url = `${baseUrl}${path}${path.includes("?") ? "&" : "?"}api_key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      accept: "application/json",
-      ...(init?.headers ?? {})
-    }
-  });
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-  if (!res.ok) throw new Error(String(json?.message || json?.error || text || "SmartLead API error"));
-  return json;
 }
 
 /**
