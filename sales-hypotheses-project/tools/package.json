@@ -1,0 +1,21 @@
+{
+  "name": "oversecured-sales-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sales automation tools: 8C qualification, hypotheses sync, HubSpot integration",
+  "scripts": {
+    "qualify": "node qualify-call-8c.mjs",
+    "process-queue": "node process-8c-queue.mjs",
+    "create-hubspot-props": "node create-hubspot-8c-properties.mjs",
+    "sync-hypotheses": "node sync-hypotheses.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.47.10",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}
