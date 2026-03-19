@@ -18,19 +18,7 @@ type CheckinRow = {
   channel_activity_json: any;
 };
 
-type HubspotSnapshotRow = {
-  hypothesis_id: string;
-  period_start: string; // week_start
-  period_end: string;
-  window_days: number;
-  companies_in_tal_count: number | null;
-  deals_in_tal_count: number | null;
-  new_deals_count: number | null;
-  stage_moves_count: number | null;
-  activities_json: any;
-};
-
-type MetricSource = "builtin" | "hypothesis" | "channel_sum" | "hubspot";
+type MetricSource = "builtin" | "hypothesis" | "channel_sum";
 
 const COLORS = ["#7dd3fc", "#a7f3d0", "#fca5a5", "#c4b5fd", "#fde68a", "#f9a8d4", "#93c5fd", "#86efac", "#fdba74"];
 
@@ -148,18 +136,6 @@ function LineChart({
 // ─── Module-level: stable across renders ─────────────────────────────────────
 
 function getValue(row: any, metricSlug: string, source: MetricSource): number | null {
-  if (source === "hubspot") {
-    const r = row as HubspotSnapshotRow;
-    if (metricSlug === "hubspot_new_deals") return toNum(r.new_deals_count);
-    if (metricSlug === "hubspot_stage_moves") return toNum(r.stage_moves_count);
-    if (metricSlug === "hubspot_emails_total") return toNum(r?.activities_json?.emails?.total);
-    if (metricSlug === "hubspot_emails_sent") return toNum(r?.activities_json?.emails?.sent);
-    if (metricSlug === "hubspot_emails_received") return toNum(r?.activities_json?.emails?.received);
-    if (metricSlug === "hubspot_meetings_total") return toNum(r?.activities_json?.meetings?.total);
-    if (metricSlug === "hubspot_notes_total") return toNum(r?.activities_json?.notes?.total);
-    if (metricSlug === "hubspot_tasks_total") return toNum(r?.activities_json?.tasks?.total);
-    return null;
-  }
   if (source === "builtin") {
     if (metricSlug === "opps_in_progress_count") return toNum(row.opps_in_progress_count);
     if (metricSlug === "tal_companies_count") return toNum(row.tal_companies_count);
@@ -190,7 +166,6 @@ function TableCard({
   weeks,
   selectedHypIds,
   byHypWeekCheckin,
-  byHypWeekHubspot,
   source,
   unitByMetricSlug,
   hypById,
@@ -200,7 +175,6 @@ function TableCard({
   weeks: string[];
   selectedHypIds: string[];
   byHypWeekCheckin: Map<string, CheckinRow>;
-  byHypWeekHubspot: Map<string, HubspotSnapshotRow>;
   source: MetricSource;
   unitByMetricSlug: Map<string, string | null>;
   hypById: Map<string, Hyp>;
@@ -209,14 +183,11 @@ function TableCard({
   const rows = useMemo(() => weeks.map((wk) => {
     const vals: Record<string, number | null> = {};
     for (const hid of selectedHypIds) {
-      const row =
-        source === "hubspot"
-          ? (byHypWeekHubspot.get(`${hid}:${wk}`) ?? null)
-          : (byHypWeekCheckin.get(`${hid}:${wk}`) ?? null);
+      const row = byHypWeekCheckin.get(`${hid}:${wk}`) ?? null;
       vals[hid] = row ? getValue(row, metricSlug, source) : null;
     }
     return { week_start: wk, vals };
-  }), [metricSlug, weeks, selectedHypIds, byHypWeekCheckin, byHypWeekHubspot, source]);
+  }), [metricSlug, weeks, selectedHypIds, byHypWeekCheckin, source]);
 
   const unit = unitByMetricSlug.get(metricSlug) ?? null;
 
@@ -299,7 +270,6 @@ export default function DashboardPage() {
   const [hyps, setHyps] = useState<Hyp[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [checkins, setCheckins] = useState<CheckinRow[]>([]);
-  const [hubspotSnaps, setHubspotSnaps] = useState<HubspotSnapshotRow[]>([]);
 
   const [source, setSource] = useState<MetricSource>("channel_sum");
   const [metricSlugs, setMetricSlugs] = useState<string[]>([]); // multi
@@ -325,35 +295,19 @@ export default function DashboardPage() {
     []
   );
 
-  const hubspotOptions = useMemo(
-    () => [
-      { slug: "hubspot_new_deals", name: "HubSpot: New deals", unit: "count" },
-      { slug: "hubspot_stage_moves", name: "HubSpot: Stage moves", unit: "count" },
-      { slug: "hubspot_emails_total", name: "HubSpot: Emails total", unit: "count" },
-      { slug: "hubspot_emails_sent", name: "HubSpot: Emails sent", unit: "count" },
-      { slug: "hubspot_emails_received", name: "HubSpot: Emails received", unit: "count" },
-      { slug: "hubspot_meetings_total", name: "HubSpot: Meetings", unit: "count" },
-      { slug: "hubspot_notes_total", name: "HubSpot: Notes", unit: "count" },
-      { slug: "hubspot_tasks_total", name: "HubSpot: Tasks", unit: "count" }
-    ],
-    []
-  );
-
   const metricOptions = useMemo(() => {
     const lib = metrics
       .slice()
       .sort((a, b) => String(a.name ?? a.slug).localeCompare(String(b.name ?? b.slug)))
       .map((m) => ({ slug: m.slug, name: m.name || m.slug, unit: m.unit }));
     if (source === "builtin") return builtinOptions;
-    if (source === "hubspot") return hubspotOptions;
     return lib;
-  }, [metrics, source, builtinOptions, hubspotOptions]);
+  }, [metrics, source, builtinOptions]);
 
   useEffect(() => {
     if (metricSlugs.length) return;
     // default
     if (source === "builtin") setMetricSlugs(["opps_in_progress_count"]);
-    else if (source === "hubspot") setMetricSlugs(["hubspot_new_deals"]);
     else setMetricSlugs([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source]);
@@ -365,7 +319,7 @@ export default function DashboardPage() {
     if (!sess.data.session) return setStatus("Not signed in. Go back to / and sign in.");
     setSessionEmail(sess.data.session.user.email ?? null);
 
-    const [hRes, mRes, cRes, hsRes] = await Promise.all([
+    const [hRes, mRes, cRes] = await Promise.all([
       supabase.from("sales_hypotheses").select("id,title,status").order("updated_at", { ascending: false }).limit(500),
       supabase.from("sales_metrics").select("id,slug,name,input_type,unit").eq("is_active", true).limit(2000),
       supabase
@@ -374,32 +328,15 @@ export default function DashboardPage() {
         .gte("week_start", since)
         .lte("week_start", until)
         .order("week_start", { ascending: true })
-        .limit(5000),
-      supabase
-        .from("sales_hubspot_tal_snapshots")
-        .select("hypothesis_id,period_start,period_end,window_days,companies_in_tal_count,deals_in_tal_count,new_deals_count,stage_moves_count,activities_json")
-        .eq("window_days", 7)
-        .gte("period_start", since)
-        .lte("period_start", until)
-        .order("period_start", { ascending: true })
         .limit(5000)
     ]);
     if (hRes.error) return setStatus(`hypotheses error: ${hRes.error.message}`);
     if (mRes.error) return setStatus(`metrics error: ${mRes.error.message}`);
     if (cRes.error) return setStatus(`checkins error: ${cRes.error.message}`);
-    if (hsRes.error) {
-      const msg = String(hsRes.error.message || "");
-      if (msg.toLowerCase().includes("does not exist")) {
-        setHubspotSnaps([]);
-      } else {
-        return setStatus(`hubspot snapshots error: ${hsRes.error.message}`);
-      }
-    }
 
     setHyps((hRes.data ?? []) as any);
     setMetrics((mRes.data ?? []) as any);
     setCheckins((cRes.data ?? []) as any);
-    setHubspotSnaps(((hsRes.data ?? []) as any) as any);
 
     // default hypothesis selection: all (first load)
     if (!selectedHypIds.length) setSelectedHypIds(((hRes.data ?? []) as any[]).map((x) => String(x.id)));
@@ -429,15 +366,13 @@ export default function DashboardPage() {
   const unitByMetricSlug = useMemo(() => {
     const m = new Map<string, string | null>();
     for (const b of builtinOptions) m.set(b.slug, b.unit);
-    for (const b of hubspotOptions) m.set(b.slug, b.unit);
     for (const x of metrics) m.set(String(x.slug), x.unit ?? null);
     return m;
-  }, [builtinOptions, hubspotOptions, metrics]);
+  }, [builtinOptions, metrics]);
 
   const weeks = useMemo(() => {
-    if (source === "hubspot") return uniq(hubspotSnaps.map((c) => String(c.period_start))).sort();
     return uniq(checkins.map((c) => String(c.week_start))).sort();
-  }, [checkins, hubspotSnaps, source]);
+  }, [checkins]);
 
   const byHypWeekCheckin = useMemo(() => {
     const m = new Map<string, CheckinRow>();
@@ -445,22 +380,13 @@ export default function DashboardPage() {
     return m;
   }, [checkins]);
 
-  const byHypWeekHubspot = useMemo(() => {
-    const m = new Map<string, HubspotSnapshotRow>();
-    for (const r of hubspotSnaps) m.set(`${String(r.hypothesis_id)}:${String(r.period_start)}`, r);
-    return m;
-  }, [hubspotSnaps]);
-
   const charts = useMemo(() => {
     const hypIds = selectedHypIds;
     const seriesFor = (metricSlug: string) =>
       hypIds.map((hid, i) => {
         const label = hypById.get(hid)?.title ?? hid;
         const values = weeks.map((wk) => {
-          const row =
-            source === "hubspot"
-              ? (byHypWeekHubspot.get(`${hid}:${wk}`) ?? null)
-              : (byHypWeekCheckin.get(`${hid}:${wk}`) ?? null);
+          const row = byHypWeekCheckin.get(`${hid}:${wk}`) ?? null;
           return row ? getValue(row, metricSlug, source) : null;
         });
         return { key: hid, label, values, color: COLORS[i % COLORS.length] };
@@ -472,7 +398,7 @@ export default function DashboardPage() {
       series: seriesFor(slug)
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metricSlugs, selectedHypIds, byHypWeekCheckin, byHypWeekHubspot, weeks, hypById, source]);
+  }, [metricSlugs, selectedHypIds, byHypWeekCheckin, weeks, hypById, source]);
 
   function viewFor(slug: string) {
     return metricView?.[slug] ?? "table";
@@ -525,7 +451,6 @@ export default function DashboardPage() {
                   <option value="channel_sum">Channel metrics (sum)</option>
                   <option value="hypothesis">Hypothesis metrics</option>
                   <option value="builtin">Built-in (counts)</option>
-                  <option value="hubspot">HubSpot (TAL snapshots)</option>
                 </select>
               </div>
               <div style={{ gridColumn: "span 3" }}>
@@ -627,7 +552,6 @@ export default function DashboardPage() {
               weeks={weeks}
               selectedHypIds={selectedHypIds}
               byHypWeekCheckin={byHypWeekCheckin}
-              byHypWeekHubspot={byHypWeekHubspot}
               source={source}
               unitByMetricSlug={unitByMetricSlug}
               hypById={hypById}

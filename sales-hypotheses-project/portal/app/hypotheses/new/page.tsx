@@ -43,19 +43,11 @@ export default function NewHypothesisPage() {
   const [winCriteria, setWinCriteria] = useState("");
   const [killCriteria, setKillCriteria] = useState("");
 
-  // HubSpot + counts
+  // Counts + vertical
   const [verticalName, setVerticalName] = useState("");
-  const [hubspotDealsViewUrl, setHubspotDealsViewUrl] = useState("");
-  const [hubspotTalUrl, setHubspotTalUrl] = useState("");
-  const [hubspotContactsListUrl, setHubspotContactsListUrl] = useState("");
   const [oppsInProgress, setOppsInProgress] = useState<number>(0);
   const [talBaseline, setTalBaseline] = useState<number | "">("");
   const [contactsBaseline, setContactsBaseline] = useState<number | "">("");
-  const [talPreview, setTalPreview] = useState<{ tal_list_id: string; companies_scanned: number; deals_found: number; contacts_found?: number } | null>(null);
-  const [talPreviewLoading, setTalPreviewLoading] = useState<boolean>(false);
-  const [talPreviewErr, setTalPreviewErr] = useState<string>("");
-  const [talCacheJob, setTalCacheJob] = useState<any>(null);
-  const [talCacheJobHint, setTalCacheJobHint] = useState<string>("");
 
   // Messaging
   const [oneSentencePitch, setOneSentencePitch] = useState("");
@@ -205,8 +197,6 @@ export default function NewHypothesisPage() {
     if (!winCriteria.trim()) return "win criteria is required";
     if (!killCriteria.trim()) return "kill criteria is required";
     if (!Number.isFinite(timeboxDays) || timeboxDays <= 0) return "timeboxDays must be > 0";
-    if (!String(hubspotTalUrl || "").trim()) return "HubSpot TAL link is required";
-    if (!String(hubspotContactsListUrl || "").trim()) return "HubSpot Contacts list link is required";
     return null;
   }
 
@@ -222,9 +212,6 @@ export default function NewHypothesisPage() {
     if (err) return setStatus(`Validation: ${err}`);
 
     setStatus("Creating...");
-    const talUrl = normalizeUrl(hubspotTalUrl);
-    const contactsListUrl = normalizeUrl(hubspotContactsListUrl);
-    const verticalRefUrl = talUrl; // derived from TAL (user pastes only URLs)
     const payload: any = {
       title: title.trim(),
       status: hypStatus,
@@ -232,12 +219,6 @@ export default function NewHypothesisPage() {
       owner_user_id: s.user.id,
       owner_email: s.user.email ?? null,
       vertical_name: verticalName.trim() || null,
-      vertical_hubspot_url: verticalRefUrl,
-      hubspot_deals_view_url: normalizeUrl(hubspotDealsViewUrl),
-      // Auto-derived: keep it in sync with the hypothesis vertical label.
-      hubspot_deal_tal_category: verticalName.trim() || null,
-      hubspot_tal_url: talUrl,
-      hubspot_contacts_list_url: contactsListUrl,
       pricing_model: pricingModel.trim() || null,
       opps_in_progress_count: Number(oppsInProgress) || 0,
       timebox_days: Number(timeboxDays) || 28,
@@ -254,16 +235,6 @@ export default function NewHypothesisPage() {
     const res = await supabase.from("sales_hypotheses").insert(payload).select("id").single();
     if (res.error) return setStatus(`Insert error: ${res.error.message}`);
     const id = String(res.data?.id ?? "");
-
-    // Enforce "one active hypothesis per TAL" (best-effort) at creation time too.
-    if (String(payload.status) === "active" && talUrl) {
-      await supabase
-        .from("sales_hypotheses")
-        .update({ status: "paused" })
-        .eq("hubspot_tal_url", talUrl)
-        .neq("id", id)
-        .eq("status", "active");
-    }
 
     if (selectedRoleIds.length) {
       const rows = selectedRoleIds.map((rid) => ({ hypothesis_id: id, role_id: rid }));
@@ -286,99 +257,6 @@ export default function NewHypothesisPage() {
     window.location.href = `/hypotheses/${id}`;
   }
 
-  async function pullTalFromHubspot() {
-    if (!supabase) return;
-    setTalPreviewErr("");
-    setTalPreview(null);
-    setTalCacheJob(null);
-    setTalCacheJobHint("");
-    setTalPreviewLoading(true);
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      const talUrl = String(hubspotTalUrl ?? "").trim();
-      if (!talUrl) throw new Error("Paste HubSpot TAL link first.");
-      const contactsListUrl = String(hubspotContactsListUrl ?? "").trim();
-      if (!contactsListUrl) throw new Error("Paste HubSpot Contacts list link first.");
-
-      let jobId: string | null = null;
-      let preview: any = null;
-      const startedAt = Date.now();
-      const maxRunMs = 12_000;
-      for (let iter = 0; iter < 80; iter++) {
-        const res = await fetch("/api/hubspot/tal/cache-sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-          body: JSON.stringify({
-            talUrl,
-            contactsListUrl,
-            jobId,
-            batch_membership_pages: 2,
-            batch_companies: 10,
-            batch_deals: 20,
-            update_hypothesis: false
-          })
-      });
-        const json: any = await readJsonResponse(res, "TAL cache sync API");
-        if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `TAL sync failed (status ${res.status})`));
-        jobId = String(json?.job?.id ?? jobId ?? "");
-        setTalCacheJob(json?.job ?? null);
-        if (json?.done) {
-          const counts = json?.counts;
-          preview = {
-            tal_list_id: String(json?.job?.tal_list_id ?? ""),
-            companies_scanned: Number(counts?.companiesCount ?? 0) || 0,
-            deals_found: Number(counts?.dealsCount ?? 0) || 0,
-            contacts_found: Number(counts?.contactsCount ?? 0) || 0
-      };
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 900));
-        if (Date.now() - startedAt > maxRunMs) {
-          setTalCacheJobHint("Sync is in progress. Click again to continue (resume).");
-          break;
-        }
-      }
-      if (!preview) return;
-      setTalPreview(preview);
-      // Sync baselines (user can still override manually after).
-      setTalBaseline(preview.companies_scanned);
-      setOppsInProgress(preview.deals_found);
-      setContactsBaseline(preview.contacts_found ?? 0);
-    } catch (e: any) {
-      setTalPreviewErr(String(e?.message || e));
-    } finally {
-      setTalPreviewLoading(false);
-    }
-  }
-
-  // NOTE: Do NOT auto-sync baselines on TAL paste. TALs can have 1000s of companies and require a job-style sync.
-
-  function parseHubspotListIdFromUrl(url: string) {
-    const t = String(url ?? "").trim();
-    const m = t.match(/\/(?:lists|objectLists)\/(\d+)(?:\b|\/|\?|#)/i);
-    return m?.[1] ? m[1] : null;
-  }
-
-  useEffect(() => {
-    if (!supabase) return;
-    const listId = parseHubspotListIdFromUrl(hubspotTalUrl);
-    if (!listId) return;
-    supabase
-      .from("sales_hubspot_tal_cache_jobs")
-      .select("id,tal_list_id,status,phase,companies_total,companies_processed,deals_processed,contacts_processed,updated_at,error")
-      .eq("tal_list_id", listId)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .then((res) => {
-        const job = Array.isArray(res.data) ? res.data[0] : null;
-        if (job) setTalCacheJob(job);
-      });
-  }, [supabase, hubspotTalUrl]);
 
   return (
     <main>
@@ -514,117 +392,6 @@ export default function NewHypothesisPage() {
                   </div>
                 ) : null}
 
-                {wizardStep === 2 ? (
-                  <div style={{ gridColumn: "span 12" }} className="card">
-                    <div className="cardBody">
-                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>3) HubSpot + baselines</div>
-                      <div className="muted2" style={{ fontSize: 12, marginBottom: 10 }}>
-                        Paste TAL link + Contacts list link — then click Sync baselines to auto-fill companies + deals + contacts.
-                      </div>
-                      <div className="grid">
-                        <div style={{ gridColumn: "span 6" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>Vertical name</label>
-                          <input className="input" value={verticalName} onChange={(e) => setVerticalName(e.target.value)} />
-                        </div>
-                        <div style={{ gridColumn: "span 6" }} className="muted2">
-                          <div style={{ fontSize: 12, marginTop: 22 }}>
-                            Vertical reference link is derived from the TAL link (no separate field).
-                          </div>
-                        </div>
-                        <div style={{ gridColumn: "span 12" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>HubSpot Deals saved view</label>
-                          <input className="input" value={hubspotDealsViewUrl} onChange={(e) => setHubspotDealsViewUrl(e.target.value)} />
-                        </div>
-                        <div style={{ gridColumn: "span 12" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>HubSpot TAL link *</label>
-                          <input className="input" value={hubspotTalUrl} onChange={(e) => setHubspotTalUrl(e.target.value)} />
-                        </div>
-                        <div style={{ gridColumn: "span 12" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>HubSpot Contacts list link *</label>
-                          <input className="input" value={hubspotContactsListUrl} onChange={(e) => setHubspotContactsListUrl(e.target.value)} />
-                          <div className="btnRow" style={{ justifyContent: "flex-start", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-                            <button className="btn" onClick={pullTalFromHubspot} disabled={talPreviewLoading}>
-                              {talPreviewLoading ? "Syncing (exact)..." : "Sync TAL cache (exact)"}
-                            </button>
-                            {talPreview ? (
-                              <span className="tag">
-                                TAL <span className="mono">#{talPreview.tal_list_id || "?"}</span> · Companies{" "}
-                                <span className="mono">{talPreview.companies_scanned}</span> · Deals{" "}
-                                <span className="mono">{talPreview.deals_found}</span> · Contacts{" "}
-                                <span className="mono">{Number(talPreview.contacts_found ?? 0)}</span>
-                              </span>
-                            ) : null}
-                          </div>
-                          {talCacheJob && !talPreviewLoading ? (
-                            <div className="helpInline" style={{ marginTop: 6 }}>
-                              TAL cache: <span className="mono">{String(talCacheJob.status || "?")}</span>
-                              {" · "}
-                              <span className="mono">{String(talCacheJob.phase || "?")}</span>
-                              {" · "}
-                              companies <span className="mono">{String(talCacheJob.companies_processed ?? 0)}</span>
-                              {talCacheJob.companies_total != null ? (
-                                <>
-                                  {" "}
-                                  / <span className="mono">{String(talCacheJob.companies_total)}</span>
-                                </>
-                              ) : null}
-                              {talCacheJob.updated_at ? (
-                                <>
-                                  {" · "}
-                                  updated <span className="mono">{String(talCacheJob.updated_at).slice(0, 19)}</span>
-                                </>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          {talCacheJobHint && !talPreviewLoading ? (
-                            <div className="helpInline" style={{ marginTop: 6 }}>
-                              {talCacheJobHint}
-                            </div>
-                          ) : null}
-                          {talPreviewErr ? (
-                            <div className="notice" style={{ marginTop: 10 }}>
-                              HubSpot error: <span className="mono">{talPreviewErr}</span>
-                            </div>
-                          ) : null}
-                        </div>
-                        <div style={{ gridColumn: "span 3" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>Deals in TAL</label>
-                          <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                            <div className="statValue">{String(oppsInProgress)}</div>
-                          </div>
-                        </div>
-                        <div style={{ gridColumn: "span 3" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>Companies in TAL</label>
-                          {talBaseline === "" ? (
-                            <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                              <div className="statValue statValueEmpty">—</div>
-                            </div>
-                          ) : (
-                            <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                              <div className="statValue">{String(talBaseline)}</div>
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ gridColumn: "span 3" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>Contacts in TAL</label>
-                          {contactsBaseline === "" ? (
-                            <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                              <div className="statValue statValueEmpty">—</div>
-                            </div>
-                          ) : (
-                            <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                              <div className="statValue">{String(contactsBaseline)}</div>
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ gridColumn: "span 3" }}>
-                          <label className="muted" style={{ fontSize: 13 }}>Owner</label>
-                          <input className="input" disabled value={sessionEmail ?? ""} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
 
                 {wizardStep === 3 ? (
                   <div style={{ gridColumn: "span 12" }} className="card">
@@ -997,94 +764,6 @@ export default function NewHypothesisPage() {
         </div>
         ) : null}
 
-        {createMode === "form" ? (
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">HubSpot + baseline</div>
-              <div className="cardDesc">Vertical and deals view are stored as links (no integrations in v1).</div>
-            </div>
-          </div>
-          <div className="cardBody">
-            <div className="grid">
-              <div style={{ gridColumn: "span 6" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Vertical name</label>
-                <input className="input" value={verticalName} onChange={(e) => setVerticalName(e.target.value)} placeholder="e.g. FinTech" />
-              </div>
-              <div style={{ gridColumn: "span 6" }}>
-                <div className="muted2" style={{ marginTop: 22, fontSize: 12 }}>
-                  Vertical reference link is derived from the TAL link (no separate field).
-                </div>
-              </div>
-              <div style={{ gridColumn: "span 12" }}>
-                <label className="muted" style={{ fontSize: 13 }}>HubSpot Deals saved view (filtered by Hypothesis ID/Name)</label>
-                <input className="input" value={hubspotDealsViewUrl} onChange={(e) => setHubspotDealsViewUrl(e.target.value)} placeholder="https://app.hubspot.com/.../saved-view?..." />
-              </div>
-              <div style={{ gridColumn: "span 12" }}>
-                <label className="muted" style={{ fontSize: 13 }}>HubSpot TAL link *</label>
-                <input className="input" value={hubspotTalUrl} onChange={(e) => setHubspotTalUrl(e.target.value)} placeholder="https://app.hubspot.com/.../lists/..." />
-              </div>
-              <div style={{ gridColumn: "span 12" }}>
-                <label className="muted" style={{ fontSize: 13 }}>HubSpot Contacts list link *</label>
-                <input className="input" value={hubspotContactsListUrl} onChange={(e) => setHubspotContactsListUrl(e.target.value)} placeholder="https://app.hubspot.com/.../lists/..." />
-                <div className="btnRow" style={{ justifyContent: "flex-start", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-                  <button className="btn" onClick={pullTalFromHubspot} disabled={talPreviewLoading}>
-                    {talPreviewLoading ? "Syncing..." : "Sync baselines"}
-                  </button>
-                  {talPreview ? (
-                    <span className="tag">
-                      TAL <span className="mono">#{talPreview.tal_list_id || "?"}</span> · Companies{" "}
-                      <span className="mono">{talPreview.companies_scanned}</span> · Deals{" "}
-                      <span className="mono">{talPreview.deals_found}</span> · Contacts{" "}
-                      <span className="mono">{Number(talPreview.contacts_found ?? 0)}</span>
-                    </span>
-                  ) : null}
-                </div>
-                {talPreviewErr ? (
-                  <div className="notice" style={{ marginTop: 10 }}>
-                    HubSpot error: <span className="mono">{talPreviewErr}</span>
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ gridColumn: "span 3" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Deals in TAL</label>
-                <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                  <div className="statValue">{String(oppsInProgress)}</div>
-                </div>
-              </div>
-              <div style={{ gridColumn: "span 3" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Companies in TAL</label>
-                {talBaseline === "" ? (
-                  <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                    <div className="statValue statValueEmpty">—</div>
-                  </div>
-                ) : (
-                  <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                    <div className="statValue">{String(talBaseline)}</div>
-                  </div>
-                )}
-              </div>
-              <div style={{ gridColumn: "span 3" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Contacts in TAL</label>
-                {contactsBaseline === "" ? (
-                  <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                    <div className="statValue statValueEmpty">—</div>
-                  </div>
-                ) : (
-                  <div className="statField" aria-readonly="true" title="Read-only (synced from HubSpot)">
-                    <div className="statValue">{String(contactsBaseline)}</div>
-                  </div>
-                )}
-              </div>
-              <div style={{ gridColumn: "span 3" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Owner</label>
-                <input className="input" disabled value={sessionEmail ?? ""} />
-              </div>
-            </div>
-          </div>
-        </div>
-        ) : null}
 
         {createMode === "form" ? (
         <div className="card" style={{ gridColumn: "span 12" }}>

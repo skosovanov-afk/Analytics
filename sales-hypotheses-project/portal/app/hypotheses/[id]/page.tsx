@@ -21,38 +21,6 @@ type UserDirectoryRow = {
   display_name: string | null;
 };
 
-type HubspotDealRow = {
-  id: string;
-  url: string | null;
-  properties: Record<string, string | null>;
-};
-
-type HubspotTalWeeklySummary = {
-  window_days: number;
-  since: string;
-  until: string;
-  tal_list_id: string;
-  companies_in_tal_count: number;
-  deals_in_tal_count: number;
-  new_deals_count: number;
-  stage_moves_count: number;
-  activities: Record<string, any>;
-  new_deals: HubspotDealRow[];
-  deals_compact?: Array<{
-    id: string;
-    url: string | null;
-    dealname: string;
-    createdate: string | null;
-    dealstage: string | null;
-    stage_label: string | null;
-    stage_category: string;
-    channel: string;
-  }>;
-  stage_moves: Array<{ deal_id: string; dealname: string; at: string; from: string; to: string }>;
-  activities_top: Record<string, Array<{ id: string; at: string | null; properties: any }>>;
-  llm_summary: string | null;
-};
-
 type PainJson = {
   pain_points?: string; // multiline
   product_solution?: string; // multiline
@@ -104,12 +72,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     >
   >({});
   const [ciMetricValues, setCiMetricValues] = useState<Record<string, string>>({});
-
-  // Table state for clickable metrics
-  const [tableRowsByMetric, setTableRowsByMetric] = useState<Record<string, any[]>>({});
-  const [tableErrByMetric, setTableErrByMetric] = useState<Record<string, string>>({});
-  const [tableLoadingByMetric, setTableLoadingByMetric] = useState<Record<string, boolean>>({});
-  const [dealsTableExpandedByMetric, setDealsTableExpandedByMetric] = useState<Record<string, boolean>>({});
 
   // Call linking
   const [callIdToLink, setCallIdToLink] = useState("");
@@ -186,47 +148,11 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
   const [allUsers, setAllUsers] = useState<UserDirectoryRow[]>([]);
   const [userQ, setUserQ] = useState<string>("");
 
-  // HubSpot (API integration)
-  const [hubspotDeals, setHubspotDeals] = useState<HubspotDealRow[] | null>(null);
-  const [hubspotDealsErr, setHubspotDealsErr] = useState<string>("");
-  const [hubspotDealsLoading, setHubspotDealsLoading] = useState<boolean>(false);
-  const [hubspotBaselines, setHubspotBaselines] = useState<{ tal_list_id: string; companies_scanned: number; deals_found: number; contacts_found: number } | null>(null);
-  const [hubspotBaselinesErr, setHubspotBaselinesErr] = useState<string>("");
-  const [hubspotBaselinesLoading, setHubspotBaselinesLoading] = useState<boolean>(false);
-  const [hubspotTalCacheJob, setHubspotTalCacheJob] = useState<any>(null);
-  const [hubspotTalCacheJobErr, setHubspotTalCacheJobErr] = useState<string>("");
-  const [hubspotTalTouchJob, setHubspotTalTouchJob] = useState<any>(null);
-  const [hubspotTalTouchJobErr, setHubspotTalTouchJobErr] = useState<string>("");
-  const [talContactedStats, setTalContactedStats] = useState<{
-    days: number;
-    since: string;
-    totals: { companies: number; contacts: number };
-    contacted: { companies: number; contacts: number };
-    coverage?: { companies_with_contacts: number; companies_without_contacts: number };
-    activity?: { emails_sent: number; linkedin_sent: number; replies: number };
-  } | null>(null);
-  const [talContactedErr, setTalContactedErr] = useState<string>("");
-  const [talContactedLoading, setTalContactedLoading] = useState<boolean>(false);
-  const [recentTouchSample, setRecentTouchSample] = useState<{ companies: any[]; contacts: any[] } | null>(null);
-  const [recentTouchSampleErr, setRecentTouchSampleErr] = useState<string>("");
-  const [recentTouchSampleLoading, setRecentTouchSampleLoading] = useState<boolean>(false);
-
   // Daily Activity (from RPC)
   const [dailyActivity, setDailyActivity] = useState<any[]>([]);
   const [dailyActivityLoading, setDailyActivityLoading] = useState<boolean>(false);
 
-  const [hubspotWeekly, setHubspotWeekly] = useState<HubspotTalWeeklySummary | null>(null);
-  const [hubspotWeeklyErr, setHubspotWeeklyErr] = useState<string>("");
-  const [hubspotWeeklyLoading, setHubspotWeeklyLoading] = useState<boolean>(false);
-  const [hubspotWeeklyUseLLM, setHubspotWeeklyUseLLM] = useState<boolean>(false);
-  const [hubspotHistory, setHubspotHistory] = useState<any[]>([]);
-  const [hubspotHistoryErr, setHubspotHistoryErr] = useState<string>("");
-  const [hubspotHistorySyncing, setHubspotHistorySyncing] = useState<boolean>(false);
-
-  // GetSales and SmartLead API data for real activity chart
-  const [getsalesReport, setGetsalesReport] = useState<any>(null);
-  const [getsalesReportErr, setGetsalesReportErr] = useState<string>("");
-  const [getsalesReportLoading, setGetsalesReportLoading] = useState<boolean>(false);
+  // SmartLead API data for real activity chart
   const [smartleadReport, setSmartleadReport] = useState<any>(null);
   const [smartleadReportErr, setSmartleadReportErr] = useState<string>("");
   const [smartleadReportLoading, setSmartleadReportLoading] = useState<boolean>(false);
@@ -238,15 +164,7 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
   const smartleadCampaignTouchedRef = useRef(false);
   const smartleadCampaignDraftTouchedRef = useRef(false);
 
-  const [getsalesFlows, setGetsalesFlows] = useState<any[]>([]);
-  const [getsalesFlowsErr, setGetsalesFlowsErr] = useState<string>("");
-  const [getsalesFlowsLoading, setGetsalesFlowsLoading] = useState<boolean>(false);
-  const [getsalesFlowUuids, setGetsalesFlowUuids] = useState<string[]>([]);
-  const [getsalesFlowDraft, setGetsalesFlowDraft] = useState<string[]>([]);
-  const getsalesFlowTouchedRef = useRef(false);
-  const getsalesFlowDraftTouchedRef = useRef(false);
-
-  // Prepare Activity Graph data (Daily - last 30 days) using real GetSales/SmartLead data
+  // Prepare Activity Graph data (Daily - last 30 days) using real SmartLead data
   const activityChartData = useMemo(() => {
     // Generate last 30 days (YYYY-MM-DD + label)
     const daysYmd: string[] = [];
@@ -276,18 +194,15 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     }
 
     const smartleadHasSeries = Array.isArray(smartleadReport?.days);
-    const getsalesHasSeries = Array.isArray(getsalesReport?.days);
 
-    // Prefer SmartLead + GetSales reports when available (most accurate).
-    if (smartleadHasSeries || getsalesHasSeries) {
+    // Prefer SmartLead report when available (most accurate).
+    if (smartleadHasSeries) {
       const emailSentMap = mapReportSeries(smartleadReport, "emails_sent");
       const emailReplyMap = mapReportSeries(smartleadReport, "emails_replied");
-      const messagesSentMap = mapReportSeries(getsalesReport, "messages_sent");
-      const messagesReplyMap = mapReportSeries(getsalesReport, "messages_replied");
 
       const emails = daysYmd.map((day) => emailSentMap.get(day) ?? 0);
-      const linkedin = daysYmd.map((day) => messagesSentMap.get(day) ?? 0);
-      const replies = daysYmd.map((day) => (emailReplyMap.get(day) ?? 0) + (messagesReplyMap.get(day) ?? 0));
+      const linkedin = daysYmd.map(() => 0);
+      const replies = daysYmd.map((day) => emailReplyMap.get(day) ?? 0);
 
       return {
         weeks: labels,
@@ -325,29 +240,10 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       };
     }
 
-    // Fallback to simplified approach (only if RPC failed or returned nothing)
-    const totalEmails = talContactedStats?.activity?.emails_sent ?? 0;
-    const totalLinkedin = talContactedStats?.activity?.linkedin_sent ?? 0;
-    const totalReplies = talContactedStats?.activity?.replies ?? 0;
-
-    // Distribute the totals across the 30 days with some realistic variation
-    const emails = labels.map((_, i) => {
-      const base = Math.floor(totalEmails / 30);
-      const variation = Math.floor(Math.random() * (base * 0.4)) - (base * 0.2);
-      return Math.max(0, base + variation);
-    });
-
-    const linkedin = labels.map((_, i) => {
-      const base = Math.floor(totalLinkedin / 30);
-      const variation = Math.floor(Math.random() * (base * 0.4)) - (base * 0.2);
-      return Math.max(0, base + variation);
-    });
-
-    const replies = labels.map((_, i) => {
-      const base = Math.floor(totalReplies / 30);
-      const variation = Math.floor(Math.random() * (base * 0.4)) - (base * 0.2);
-      return Math.max(0, base + variation);
-    });
+    // Fallback: no data
+    const emails = labels.map(() => 0);
+    const linkedin = labels.map(() => 0);
+    const replies = labels.map(() => 0);
 
     return {
       weeks: labels,
@@ -356,9 +252,9 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
         { key: "linkedin", label: "LinkedIn", color: "#818cf8", values: linkedin },
         { key: "replies", label: "Replies", color: "#34d399", values: replies }
       ],
-      totals: { emails: totalEmails, linkedin: totalLinkedin, replies: totalReplies }
+      totals: { emails: 0, linkedin: 0, replies: 0 }
     };
-  }, [dailyActivity, talContactedStats, smartleadReport, getsalesReport, smartleadCampaignIds]);
+  }, [dailyActivity, smartleadReport, smartleadCampaignIds]);
 
   // Channels library
   const [channelOptions, setChannelOptions] = useState<Array<{ slug: string; name: string }>>(() =>
@@ -416,78 +312,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     return num.toLocaleString();
   }
 
-  async function loadTalContactedStats(days: number = 90) {
-    if (!supabase) return;
-    const talUrl = String(editing?.hubspot_tal_url ?? "").trim();
-    if (!talUrl) return;
-    setTalContactedLoading(true);
-    setTalContactedErr("");
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      const res = await fetch("/api/hubspot/tal/contacted-stats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ hubspot_tal_url: talUrl, days })
-      });
-      const json = (await res.json().catch(() => null)) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `Request failed (status ${res.status})`));
-      setTalContactedStats({
-        days: Number(json.days ?? days) || days,
-        since: String(json.since ?? ""),
-        totals: { companies: Number(json?.totals?.companies ?? 0) || 0, contacts: Number(json?.totals?.contacts ?? 0) || 0 },
-        contacted: { companies: Number(json?.contacted?.companies ?? 0) || 0, contacts: Number(json?.contacted?.contacts ?? 0) || 0 },
-        coverage: {
-          companies_with_contacts: Number(json?.coverage?.companies_with_contacts ?? 0) || 0,
-          companies_without_contacts: Number(json?.coverage?.companies_without_contacts ?? 0) || 0
-        },
-        activity: {
-          emails_sent: Number(json?.activity?.emails_sent ?? 0) || 0,
-          linkedin_sent: Number(json?.activity?.linkedin_sent ?? 0) || 0,
-          replies: Number(json?.activity?.replies ?? 0) || 0
-        }
-      });
-    } catch (e: any) {
-      setTalContactedErr(String(e?.message || e));
-    } finally {
-      setTalContactedLoading(false);
-    }
-  }
-
-  async function loadGetsalesReport() {
-    if (!supabase) return;
-    setGetsalesReportLoading(true);
-    setGetsalesReportErr("");
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      // Get last 30 days
-      const until = new Date();
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-
-      const res = await fetch("/api/getsales/reports/timeseries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          since: since.toISOString().slice(0, 10),
-          until: until.toISOString().slice(0, 10),
-          bucketSizeDays: 1,
-          maxBuckets: 30
-        })
-      });
-      const json = (await res.json().catch(() => null)) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `GetSales request failed (status ${res.status})`));
-      setGetsalesReport(json);
-    } catch (e: any) {
-      setGetsalesReportErr(String(e?.message || e));
-    } finally {
-      setGetsalesReportLoading(false);
-    }
-  }
 
   async function loadSmartleadReport() {
     if (!supabase) return;
@@ -548,33 +372,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       setSmartleadCampaignsErr(String(e?.message || e));
     } finally {
       setSmartleadCampaignsLoading(false);
-    }
-  }
-
-  /**
-   * Load GetSales automations (flows) for hypothesis-specific filtering.
-   */
-  async function loadGetsalesFlows() {
-    if (!supabase) return;
-    setGetsalesFlowsLoading(true);
-    setGetsalesFlowsErr("");
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      const res = await fetch("/api/getsales/flows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ limit: 200, offset: 0, all: true })
-      });
-      const json = (await res.json().catch(() => null)) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed to load GetSales flows"));
-      setGetsalesFlows(Array.isArray(json?.flows) ? json.flows : []);
-    } catch (e: any) {
-      setGetsalesFlowsErr(String(e?.message || e));
-      setGetsalesFlows([]);
-    } finally {
-      setGetsalesFlowsLoading(false);
     }
   }
 
@@ -686,7 +483,7 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSessionEmail(data.session?.user?.email ?? null));
-  }, [supabase, getsalesFlowUuids.join(",")]);
+  }, [supabase]);
 
   function isoSinceDaysAgo(days: number) {
     const d = new Date();
@@ -1084,12 +881,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, id]);
 
-  useEffect(() => {
-    // best-effort: history table might not exist until schema is applied
-    loadHubspotHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, id]);
-
   function normalizeUrl(v: string) {
     const t = String(v ?? "").trim();
     if (!t) return null;
@@ -1150,9 +941,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       else if (k === "tal_companies_count_baseline") out[k] = v === "" || v == null ? null : Number(v);
       else if (k === "contacts_count_baseline") out[k] = v === "" || v == null ? null : Number(v);
       else if (k === "owner_email") out[k] = normalizeEmail(String(v ?? ""));
-      else if (k === "hubspot_tal_url") out[k] = normalizeUrl(String(v ?? ""));
-      else if (k === "hubspot_contacts_list_url") out[k] = normalizeUrl(String(v ?? "")) || null;
-      else if (k === "hubspot_deals_view_url") out[k] = normalizeUrl(String(v ?? ""));
       else if (
         [
           "title",
@@ -1176,15 +964,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       }
     }
 
-    // Keep derived fields in sync with UX.
-    if ("vertical_name" in out) {
-      out.hubspot_deal_tal_category = String(out.vertical_name ?? "").trim() || null;
-    }
-    if ("hubspot_tal_url" in out) {
-      // Derived: vertical reference link follows TAL link (UX: paste URLs only).
-      out.vertical_hubspot_url = out.hubspot_tal_url;
-    }
-
     return out;
   }
 
@@ -1202,19 +981,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
   }
 
   /**
-   * Apply GetSales automation selection and persist it as a hypothesis setting.
-   */
-  function applyGetsalesFlowSelection(next: string[]) {
-    const normalized = normalizeGetsalesFlowUuids(next);
-    getsalesFlowTouchedRef.current = true;
-    setGetsalesFlowUuids(next);
-    if (editing) {
-      setEditing({ ...editing, getsales_flow_uuids: normalized });
-      autosaveHypothesisOnBlur({ getsales_flow_uuids: normalized });
-    }
-  }
-
-  /**
    * Toggle a campaign in the draft selection (checkbox UX).
    */
   function toggleSmartleadCampaignDraft(id: string) {
@@ -1222,21 +988,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     if (!key) return;
     smartleadCampaignDraftTouchedRef.current = true;
     setSmartleadCampaignDraft((prev) => {
-      const set = new Set(prev.map((x) => String(x)));
-      if (set.has(key)) set.delete(key);
-      else set.add(key);
-      return Array.from(set);
-    });
-  }
-
-  /**
-   * Toggle a GetSales automation in the draft selection (checkbox UX).
-   */
-  function toggleGetsalesFlowDraft(id: string) {
-    const key = String(id ?? "").trim();
-    if (!key) return;
-    getsalesFlowDraftTouchedRef.current = true;
-    setGetsalesFlowDraft((prev) => {
       const set = new Set(prev.map((x) => String(x)));
       if (set.has(key)) set.delete(key);
       else set.add(key);
@@ -1259,22 +1010,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     return out;
   }
 
-  /**
-   * Normalize GetSales automation UUIDs from UI values.
-   */
-  function normalizeGetsalesFlowUuids(input: string[]) {
-    const out = Array.from(new Set((input || []).map((x) => String(x ?? "").trim()).filter(Boolean)));
-    return out;
-  }
-
-  function getsalesSelectionSame(a: string[], b: string[]) {
-    const aa = normalizeGetsalesFlowUuids(a);
-    const bb = normalizeGetsalesFlowUuids(b);
-    if (aa.length !== bb.length) return false;
-    const set = new Set(aa);
-    return bb.every((x) => set.has(x));
-  }
-
   async function flushHypothesisAutosaveQueue() {
     if (!supabase) return;
     if (autosaveInFlightRef.current) return;
@@ -1284,18 +1019,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
 
     autosaveInFlightRef.current = true;
     try {
-      // Preserve "one active hypothesis per TAL" behavior on autosave too (status changes).
-      const talUrlForUniq = normalizeUrl(String(editing?.hubspot_tal_url ?? "")) || null;
-      if (String(patch.status ?? "") === "active" && talUrlForUniq) {
-        const pauseOthers = await supabase
-          .from("sales_hypotheses")
-          .update({ status: "paused" })
-          .eq("hubspot_tal_url", talUrlForUniq)
-          .neq("id", id)
-          .eq("status", "active");
-        if (pauseOthers.error) console.warn("autosave pauseOthers failed:", pauseOthers.error.message);
-      }
-
       const res = await supabase.from("sales_hypotheses").update(patch).eq("id", id);
       if (res.error) {
         setStatus(`Autosave error: ${res.error.message}`);
@@ -1347,8 +1070,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     if (!h?.win_criteria?.trim()) return "win criteria is required";
     if (!h?.kill_criteria?.trim()) return "kill criteria is required";
     if (!Number.isFinite(Number(h?.timebox_days ?? 0)) || Number(h.timebox_days) <= 0) return "timebox_days must be > 0";
-    if (!String(h?.hubspot_tal_url ?? "").trim()) return "HubSpot TAL link is required";
-    if (!String(h?.hubspot_contacts_list_url ?? "").trim()) return "HubSpot Contacts list link is required";
     return null;
   }
 
@@ -1358,8 +1079,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     if (err) return setStatus(`Validation: ${err}`);
 
     setStatus("Saving...");
-    const talUrl = normalizeUrl(String(editing.hubspot_tal_url ?? ""));
-    const talCategory = String(editing.vertical_name ?? "").trim() || null;
     const payload: any = {
       title: String(editing.title ?? "").trim(),
       status: String(editing.status ?? "draft"),
@@ -1367,13 +1086,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       owner_user_id: String(editing.owner_user_id ?? "").trim(),
       owner_email: String(editing.owner_email ?? "").trim().toLowerCase() || null,
       vertical_name: String(editing.vertical_name ?? "").trim() || null,
-      // Derived: we keep UX "paste URLs only"; vertical reference is the TAL link.
-      vertical_hubspot_url: talUrl,
-      hubspot_deals_view_url: normalizeUrl(String(editing.hubspot_deals_view_url ?? "")),
-      // Auto-derived: keep it in sync with the hypothesis vertical label.
-      hubspot_deal_tal_category: talCategory,
-      hubspot_tal_url: talUrl,
-      hubspot_contacts_list_url: normalizeUrl(String(editing.hubspot_contacts_list_url ?? "")) || null,
       pricing_model: String(editing.pricing_model ?? "").trim() || null,
       opps_in_progress_count: Number(editing.opps_in_progress_count ?? 0) || 0,
       timebox_days: Number(editing.timebox_days ?? 28) || 28,
@@ -1390,260 +1102,11 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       cjm_json: cjm
     };
 
-    // Enforce "one active hypothesis per TAL" (best-effort).
-    // If user activates this hypothesis and it has a TAL link, pause other active hypotheses for the same TAL.
-    const talUrlForUniq = normalizeUrl(String(editing.hubspot_tal_url ?? "")) || null;
-    if (String(payload.status) === "active" && talUrlForUniq) {
-      const pauseOthers = await supabase
-        .from("sales_hypotheses")
-        .update({ status: "paused" })
-        .eq("hubspot_tal_url", talUrlForUniq)
-        .neq("id", id)
-        .eq("status", "active");
-      // Ignore RLS errors; main save still proceeds.
-      if (pauseOthers.error) {
-        // keep the message low-noise (do not block save)
-        console.warn("HubSpot TAL uniqueness pauseOthers failed:", pauseOthers.error.message);
-      }
-    }
-
     const res = await supabase.from("sales_hypotheses").update(payload).eq("id", id);
     if (res.error) return setStatus(`Update error: ${res.error.message}`);
     await load();
     setStatus("Saved.");
   }
-
-  async function saveHubspotLinksOnly() {
-    if (!supabase) return;
-    if (!editing) return;
-    setStatus("Saving HubSpot links...");
-    const talUrl = normalizeUrl(String(editing.hubspot_tal_url ?? ""));
-    const talCategory = String(editing.vertical_name ?? "").trim() || null;
-    const payload: any = {
-      hubspot_tal_url: talUrl,
-      hubspot_contacts_list_url: normalizeUrl(String(editing.hubspot_contacts_list_url ?? "")) || null,
-      hubspot_deals_view_url: normalizeUrl(String(editing.hubspot_deals_view_url ?? "")),
-      // Auto-derived: keep it in sync with the hypothesis vertical label.
-      hubspot_deal_tal_category: talCategory,
-      // Derived: vertical reference follows TAL.
-      vertical_hubspot_url: talUrl
-    };
-    const res = await supabase.from("sales_hypotheses").update(payload).eq("id", id);
-    if (res.error) return setStatus(`Update error: ${res.error.message}`);
-    await load();
-    setStatus("HubSpot links saved.");
-  }
-
-  async function syncBaselinesFromHubspot() {
-    if (!supabase) return;
-    setHubspotBaselinesErr("");
-    setHubspotBaselines(null);
-    setHubspotTalCacheJob(null);
-    setHubspotTalCacheJobErr("");
-    setHubspotBaselinesLoading(true);
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      const talUrl = String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("Missing HubSpot TAL link in this hypothesis (hubspot_tal_url).");
-      const contactsListUrl = String(editing?.hubspot_contacts_list_url ?? h?.hubspot_contacts_list_url ?? "").trim();
-
-      // Start/resume one slice. Background cron continues while job is running.
-      const res = await fetch("/api/hubspot/tal/cache-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ talUrl, contactsListUrl, hypothesisId: id, update_hypothesis: true })
-      });
-      const json: any = await readJsonResponse(res, "TAL cache sync API");
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `TAL sync failed (status ${res.status})`));
-      setHubspotTalCacheJob(json?.job ?? null);
-      setHubspotTalCacheJobErr("Sync started. It will continue in background; refresh this page if needed.");
-
-      // Start/resume touch sync (HubSpot activities/email/meeting/call excluding NOTE/TASK).
-      // This runs independently and can take hours for large TALs; cron continues in background.
-      try {
-        await fetch("/api/hubspot/tal/touch-sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ talUrl })
-        });
-      } catch {
-        // ignore
-      }
-
-      // Best-effort refresh visible numbers if finalize happened.
-      if (json?.done && json?.counts) {
-        const counts = json.counts;
-        setHubspotBaselines({
-          tal_list_id: String(json?.job?.tal_list_id ?? ""),
-          companies_scanned: Number(counts?.companiesCount ?? 0) || 0,
-          deals_found: Number(counts?.dealsCount ?? 0) || 0,
-          contacts_found: Number(counts?.contactsCount ?? 0) || 0
-        });
-      }
-
-      // Refresh job status from DB (shows progress immediately).
-      try {
-        await loadTalCacheJobForCurrentTal();
-      } catch {
-        // ignore
-      }
-    } catch (e: any) {
-      setHubspotBaselinesErr(String(e?.message || e));
-    } finally {
-      setHubspotBaselinesLoading(false);
-    }
-  }
-
-  // NOTE: Do NOT auto-sync baselines on TAL paste. TALs can have 1000s of companies and require a job-style sync.
-
-  function parseHubspotListIdFromUrl(url: string) {
-    const t = String(url ?? "").trim();
-    const m = t.match(/\/(?:lists|objectLists)\/(\d+)(?:\b|\/|\?|#)/i);
-    return m?.[1] ? m[1] : null;
-  }
-
-  async function loadTalCacheJobForCurrentTal() {
-    if (!supabase) return;
-    const talUrl = String(editing?.hubspot_tal_url ?? "").trim();
-    const listId = parseHubspotListIdFromUrl(talUrl);
-    if (!listId) return;
-    const res = await supabase
-      .from("sales_hubspot_tal_cache_jobs")
-      .select("id,tal_list_id,status,phase,companies_total,companies_processed,deals_processed,contacts_processed,updated_at,error,started_at,finished_at")
-      .eq("tal_list_id", listId)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    if (res.error) return;
-    const job = Array.isArray(res.data) ? res.data[0] : null;
-    if (job) setHubspotTalCacheJob(job);
-  }
-
-  async function loadTalTouchJobForCurrentTal() {
-    if (!supabase) return;
-    const talUrl = String(editing?.hubspot_tal_url ?? "").trim();
-    const listId = parseHubspotListIdFromUrl(talUrl);
-    if (!listId) return;
-    const res = await supabase
-      .from("sales_hubspot_tal_touch_jobs")
-      .select("id,tal_list_id,status,phase,deals_processed,contacts_processed,updated_at,error,started_at,finished_at")
-      .eq("tal_list_id", listId)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    if (res.error) return;
-    const job = Array.isArray(res.data) ? res.data[0] : null;
-    if (job) setHubspotTalTouchJob(job);
-  }
-
-  async function autoSyncBaselinesIfNeeded() {
-    if (!supabase || !editing?.hubspot_tal_url) return;
-    // Check if we have a successful cache job in the last 24 hours.
-    // If not, trigger a sync to ensure activity stats (which rely on sales_hubspot_tal_contacts) are fresh.
-    const talUrl = String(editing.hubspot_tal_url).trim();
-    const listId = parseHubspotListIdFromUrl(talUrl);
-    if (!listId) return;
-
-    const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const res = await supabase
-      .from("sales_hubspot_tal_cache_jobs")
-      .select("id")
-      .eq("tal_list_id", listId)
-      .eq("status", "done")
-      .gt("finished_at", sinceIso)
-      .limit(1);
-
-    if (res.error) return; // fail silently
-    if (!res.data?.length) {
-      console.log("No fresh TAL snapshot found (> 24h), triggering auto-sync...");
-      // We don't await this to assume UI is not blocked, but syncBaselinesFromHubspot manages loading state.
-      // However, to avoid blocking user interaction, we just fire it.
-      // But syncBaselinesFromHubspot sets loading states which might be distracting?
-      // Actually, standard behavior is good: show loading spinner so user knows stats are updating.
-      await syncBaselinesFromHubspot();
-    }
-  }
-
-  useEffect(() => {
-    // wait for editing to be populated (load() finished)
-    if (editing?.hubspot_tal_url) {
-      void autoSyncBaselinesIfNeeded();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing?.hubspot_tal_url]);
-
-  useEffect(() => {
-    void loadTalCacheJobForCurrentTal();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, editing?.hubspot_tal_url]);
-
-  useEffect(() => {
-    void loadTalTouchJobForCurrentTal();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, editing?.hubspot_tal_url]);
-
-  // Poll TAL cache job status while syncing (otherwise the timestamp/phase looks "stuck").
-  useEffect(() => {
-    if (!hubspotTalCacheJob || String(hubspotTalCacheJob.status) !== "running") return;
-    const t = setInterval(() => {
-      void loadTalCacheJobForCurrentTal();
-    }, 15_000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hubspotTalCacheJob?.id, hubspotTalCacheJob?.status, editing?.hubspot_tal_url, supabase]);
-
-  useEffect(() => {
-    if (!hubspotTalTouchJob || String(hubspotTalTouchJob.status) !== "running") return;
-    const t = setInterval(() => {
-      void loadTalTouchJobForCurrentTal();
-    }, 20_000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hubspotTalTouchJob?.id, hubspotTalTouchJob?.status, editing?.hubspot_tal_url, supabase]);
-
-  useEffect(() => {
-    void loadTalContactedStats(90);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, editing?.hubspot_tal_url, hubspotTalCacheJob?.status]);
-
-  // Poll contacted/total while syncing so totals (company_contacts) visibly increase.
-  useEffect(() => {
-    if (!hubspotTalCacheJob || String(hubspotTalCacheJob.status) !== "running") return;
-    const t = setInterval(() => {
-      void loadTalContactedStats(90);
-    }, 30_000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hubspotTalCacheJob?.id, hubspotTalCacheJob?.status, editing?.hubspot_tal_url, supabase]);
-
-  // Load GetSales report for real activity data
-  useEffect(() => {
-    if (!supabase) return;
-    const t = setTimeout(async () => {
-      try {
-        await loadGetsalesReport();
-      } catch (e) {
-        console.warn("GetSales report load failed:", e);
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
-  // Load SmartLead campaign list for this hypothesis.
-  useEffect(() => {
-    if (!supabase) return;
-    void loadSmartleadCampaigns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
-  // Load GetSales flows (automations) list for this hypothesis.
-  useEffect(() => {
-    if (!supabase) return;
-    void loadGetsalesFlows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
 
   // Initialize SmartLead campaign selection from the hypothesis record.
   useEffect(() => {
@@ -1654,16 +1117,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     setSmartleadCampaignDraft(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing?.id, editing?.smartlead_campaign_ids]);
-
-  // Initialize GetSales flow selection from the hypothesis record.
-  useEffect(() => {
-    if (!editing || getsalesFlowTouchedRef.current || getsalesFlowDraftTouchedRef.current) return;
-    const fromDb = Array.isArray(editing?.getsales_flow_uuids) ? editing.getsales_flow_uuids : [];
-    const next = fromDb.map((x: any) => String(x)).filter(Boolean);
-    setGetsalesFlowUuids(next);
-    setGetsalesFlowDraft(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing?.id, editing?.getsales_flow_uuids]);
 
   // Load SmartLead report for real activity data
   useEffect(() => {
@@ -1686,7 +1139,7 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     const t = setTimeout(() => void loadDailyActivityStats(), 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, editing?.hubspot_tal_url]);
+  }, [supabase]);
 
   async function loadDailyActivityStats() {
     if (!supabase) return;
@@ -1698,12 +1151,10 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       const token = sess.data.session?.access_token ?? "";
       if (!token) throw new Error("Not signed in.");
 
-      // Prefer TAL URL to compute daily series via RPC.
-      const talUrl = String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url ?? "").trim();
       const res = await fetch("/api/analytics/daily-stats", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ hypothesisId: id, days: 30, hubspot_tal_url: talUrl })
+        body: JSON.stringify({ hypothesisId: id, days: 30 })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to fetch daily stats");
@@ -1713,345 +1164,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
       console.error("loadDailyActivityStats error:", e);
     } finally {
       setDailyActivityLoading(false);
-    }
-  }
-
-  async function loadRecentTouchSample() {
-    if (!supabase) return;
-    setRecentTouchSampleLoading(true);
-    setRecentTouchSampleErr("");
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      const talUrl = String(editing?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("Missing HubSpot TAL link in this hypothesis (hubspot_tal_url).");
-      const res = await fetch("/api/hubspot/tal/touch-sample", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ talUrl, days: 90, limit: 10 })
-      });
-      const json: any = await readJsonResponse(res, "Touch sample API");
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `Request failed (status ${res.status})`));
-      setRecentTouchSample({ companies: Array.isArray(json?.companies) ? json.companies : [], contacts: Array.isArray(json?.contacts) ? json.contacts : [] });
-    } catch (e: any) {
-      setRecentTouchSampleErr(String(e?.message || e));
-    } finally {
-      setRecentTouchSampleLoading(false);
-    }
-  }
-
-  async function loadHubspotDeals() {
-    if (!supabase) return;
-    setHubspotDealsErr("");
-    setHubspotDealsLoading(true);
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      const talUrl = String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("Missing HubSpot TAL link in this hypothesis (hubspot_tal_url).");
-
-      const res = await fetch("/api/hubspot/deals/by-tal", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ talUrl, maxCompanies: 100, maxDeals: 100 })
-      });
-      const json: any = await readJsonResponse(res, "HubSpot API");
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? `HubSpot request failed (status ${res.status})`));
-      setHubspotDeals(Array.isArray(json?.deals) ? (json.deals as HubspotDealRow[]) : []);
-    } catch (e: any) {
-      setHubspotDealsErr(String(e?.message || e));
-    } finally {
-      setHubspotDealsLoading(false);
-    }
-  }
-
-  async function loadHubspotWeeklySummary() {
-    if (!supabase) return;
-    setHubspotWeeklyErr("");
-    setHubspotWeeklyLoading(true);
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      const talUrl = String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("Missing HubSpot TAL link in this hypothesis (hubspot_tal_url).");
-
-      const res = await fetch("/api/hubspot/tal/weekly-summary", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          talUrl,
-          days: 7,
-          maxCompanies: 200,
-          maxDeals: 200,
-          maxActivitiesPerType: 200,
-          includeLLMSummary: !!hubspotWeeklyUseLLM,
-          ownerEmail: editing?.hubspot_deals_owner_email,
-          talCategory: editing?.hubspot_deal_tal_category
-        })
-      });
-      const json: any = await readJsonResponse(res, "HubSpot weekly summary API");
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "HubSpot request failed"));
-      setHubspotWeekly(json as HubspotTalWeeklySummary);
-    } catch (e: any) {
-      setHubspotWeeklyErr(String(e?.message || e));
-    } finally {
-      setHubspotWeeklyLoading(false);
-    }
-  }
-
-  async function loadHubspotHistory() {
-    if (!supabase) return;
-    setHubspotHistoryErr("");
-    try {
-      const res = await supabase
-        .from("sales_hubspot_tal_snapshots")
-        .select("id,period_start,period_end,window_days,companies_in_tal_count,deals_in_tal_count,new_deals_count,stage_moves_count,activities_json,llm_summary,updated_at")
-        .eq("hypothesis_id", id)
-        .order("period_start", { ascending: false })
-        .limit(200);
-      if (res.error) throw new Error(res.error.message);
-      setHubspotHistory((res.data ?? []) as any[]);
-    } catch (e: any) {
-      setHubspotHistoryErr(String(e?.message || e));
-    }
-  }
-
-  function startOfWeekDate(d: Date) {
-    const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-    const day = x.getUTCDay(); // 0..6 (Sun..Sat)
-    const diff = (day + 6) % 7; // Monday=0
-    x.setUTCDate(x.getUTCDate() - diff);
-    return x;
-  }
-
-  function toDateYMD(d: Date) {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(d.getUTCDate()).padStart(2, "0");
-    return `${y}-${m}-${dd}`;
-  }
-
-  function isOppStage(cat: string) {
-    const c = String(cat ?? "").toLowerCase();
-    return c === "evaluate" || c === "purchase" || c === "integration" || c === "dormant" || c === "churn";
-  }
-  function isCustomerStage(cat: string) {
-    const c = String(cat ?? "").toLowerCase();
-    return c === "integration" || c === "dormant" || c === "churn";
-  }
-  function isChurnStage(cat: string) {
-    const c = String(cat ?? "").toLowerCase();
-    return c === "dormant" || c === "churn";
-  }
-  function isLeadStage(cat: string) {
-    const c = String(cat ?? "").toLowerCase();
-    return c === "lead" || c === "sql";
-  }
-
-  function safeParseISODate(s: any): number | null {
-    if (!s) return null;
-    const t = Date.parse(String(s));
-    return Number.isFinite(t) ? t : null;
-  }
-
-  function inc(map: Record<string, number>, key: string, by = 1) {
-    const k = key || "Unknown";
-    map[k] = (map[k] ?? 0) + by;
-  }
-
-  function computeFunnelFromSnapshots(args: {
-    periodStartYMD: string;
-    periodEndYMD: string;
-    currDeals: Array<any>;
-    prevDeals: Array<any>;
-  }) {
-    const startMs = Date.parse(`${args.periodStartYMD}T00:00:00.000Z`);
-    const endMs = Date.parse(`${args.periodEndYMD}T00:00:00.000Z`);
-    const prevById = new Map<string, any>();
-    for (const d of args.prevDeals || []) prevById.set(String(d?.id ?? ""), d);
-
-    const newDealsByChannel: Record<string, number> = {};
-    const newLeadsByChannel: Record<string, number> = {};
-    const newOppsByChannel: Record<string, number> = {};
-    const newCustomersByChannel: Record<string, number> = {};
-    const newChurnByChannel: Record<string, number> = {};
-
-    let newDeals = 0;
-    let newLeads = 0;
-    const newOppIds = new Set<string>();
-    const newCustomerIds = new Set<string>();
-    const newChurnIds = new Set<string>();
-
-    // Created this week (new deals/leads)
-    for (const d of args.currDeals || []) {
-      const id = String(d?.id ?? "");
-      const channel = String(d?.channel ?? "Unknown") || "Unknown";
-      const cat = String(d?.stage_category ?? "unknown");
-      const createdMs = safeParseISODate(d?.createdate);
-      if (createdMs != null && createdMs >= startMs && createdMs < endMs) {
-        newDeals++;
-        inc(newDealsByChannel, channel);
-        if (isLeadStage(cat)) {
-          newLeads++;
-          inc(newLeadsByChannel, channel);
-        }
-      }
-      // transitions based on week-to-week diff
-      const prev = prevById.get(id) ?? null;
-      const prevCat = String(prev?.stage_category ?? "unknown");
-      if (isOppStage(cat) && !isOppStage(prevCat)) {
-        newOppIds.add(id);
-        inc(newOppsByChannel, channel);
-      }
-      if (isCustomerStage(cat) && !isCustomerStage(prevCat)) {
-        newCustomerIds.add(id);
-        inc(newCustomersByChannel, channel);
-      }
-      if (isChurnStage(cat) && !isChurnStage(prevCat)) {
-        newChurnIds.add(id);
-        inc(newChurnByChannel, channel);
-      }
-    }
-
-    // stage moves count (approx): number of deals whose stage category changed week-to-week
-    let stageMoves = 0;
-    for (const d of args.currDeals || []) {
-      const id = String(d?.id ?? "");
-      const prev = prevById.get(id) ?? null;
-      if (!prev) continue;
-      const prevCat = String(prev?.stage_category ?? "unknown");
-      const curCat = String(d?.stage_category ?? "unknown");
-      if (prevCat && curCat && prevCat !== curCat) stageMoves++;
-    }
-
-    return {
-      counts: {
-        new_deals: newDeals,
-        new_leads: newLeads,
-        new_opps: newOppIds.size,
-        new_customers: newCustomerIds.size,
-        new_churn: newChurnIds.size,
-        stage_moves: stageMoves
-      },
-      by_channel: {
-        new_deals: newDealsByChannel,
-        new_leads: newLeadsByChannel,
-        new_opps: newOppsByChannel,
-        new_customers: newCustomersByChannel,
-        new_churn: newChurnByChannel
-      }
-    };
-  }
-
-  async function syncHubspotHistory() {
-    if (!supabase) return;
-    setHubspotHistoryErr("");
-    setHubspotHistorySyncing(true);
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      const talUrl = String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("Missing HubSpot TAL link in this hypothesis (hubspot_tal_url).");
-
-      const createdAt = h?.created_at ? new Date(String(h.created_at)) : new Date();
-      const from = startOfWeekDate(createdAt);
-      const now = new Date();
-      const to = startOfWeekDate(now);
-
-      const weeks: Date[] = [];
-      const cur = new Date(from.getTime());
-      const maxWeeks = 104; // guardrail
-      while (weeks.length < maxWeeks && cur.getTime() <= to.getTime()) {
-        weeks.push(new Date(cur.getTime()));
-        cur.setUTCDate(cur.getUTCDate() + 7);
-      }
-
-      // Load existing to skip.
-      const existing = await supabase
-        .from("sales_hubspot_tal_snapshots")
-        .select("period_start,data_json")
-        .eq("hypothesis_id", id)
-        .eq("window_days", 7)
-        .limit(500);
-      const have = new Map<string, any>();
-      for (const r of (existing.data ?? []) as any[]) have.set(String(r.period_start), r);
-
-      for (const wk of weeks) {
-        const periodStart = toDateYMD(wk);
-        const periodEnd = toDateYMD(new Date(wk.getTime() + 7 * 24 * 60 * 60 * 1000));
-
-        const api = await fetch("/api/hubspot/tal/weekly-summary", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            talUrl,
-            since: new Date(`${periodStart}T00:00:00.000Z`).toISOString(),
-            until: new Date(`${periodEnd}T00:00:00.000Z`).toISOString(),
-            days: 7,
-            maxCompanies: 200,
-            maxDeals: 200,
-            maxActivitiesPerType: 200,
-            includeLLMSummary: false,
-            ownerEmail: String(editing?.hubspot_deals_owner_email ?? h?.hubspot_deals_owner_email ?? "").trim()
-          })
-        });
-        const json = (await api.json()) as any;
-        if (!api.ok || !json?.ok) throw new Error(String(json?.error ?? "HubSpot request failed"));
-
-        const currDeals = Array.isArray(json?.deals_compact) ? json.deals_compact : [];
-        const prevStart = toDateYMD(new Date(wk.getTime() - 7 * 24 * 60 * 60 * 1000));
-        const prevRow = have.get(prevStart) ?? null;
-        const prevDeals = Array.isArray(prevRow?.data_json?.deals_compact) ? prevRow.data_json.deals_compact : [];
-        const funnel = computeFunnelFromSnapshots({ periodStartYMD: periodStart, periodEndYMD: periodEnd, currDeals, prevDeals });
-
-        const ins = await supabase.from("sales_hubspot_tal_snapshots").upsert(
-          {
-            hypothesis_id: id,
-            period_start: periodStart,
-            period_end: periodEnd,
-            window_days: 7,
-            tal_list_id: String(json?.tal_list_id ?? ""),
-            companies_in_tal_count: Number(json?.companies_in_tal_count ?? 0) || 0,
-            deals_in_tal_count: Number(json?.deals_in_tal_count ?? 0) || 0,
-            new_deals_count: Number(funnel.counts.new_deals ?? json?.new_deals_count ?? 0) || 0,
-            stage_moves_count: Number(funnel.counts.stage_moves ?? json?.stage_moves_count ?? 0) || 0,
-            new_leads_count: Number(funnel.counts.new_leads ?? 0) || 0,
-            new_opps_count: Number(funnel.counts.new_opps ?? 0) || 0,
-            new_customers_count: Number(funnel.counts.new_customers ?? 0) || 0,
-            new_churn_count: Number(funnel.counts.new_churn ?? 0) || 0,
-            funnel_by_channel_json: funnel.by_channel as any,
-            activities_json: (json?.activities ?? {}) as any,
-            data_json: json as any
-          },
-          { onConflict: "hypothesis_id,period_start,window_days" }
-        );
-        if (ins.error) throw new Error(ins.error.message);
-
-        // update local cache of existing rows (for subsequent weeks)
-        have.set(periodStart, { period_start: periodStart, data_json: json });
-      }
-
-      await loadHubspotHistory();
-    } catch (e: any) {
-      setHubspotHistoryErr(String(e?.message || e));
-    } finally {
-      setHubspotHistorySyncing(false);
     }
   }
 
@@ -2425,209 +1537,9 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
     setStatus("Metric removed.");
   }
 
-  /**
-   * Toggle the deals table for a metric (leads/opps).
-   *
-   * UX intent:
-   * - Clicking a stat should expand/collapse the table (no "debug" microcopy).
-   * - First expand triggers a load; subsequent expands reuse cached rows unless user hits Reload.
-   */
-  async function toggleDealsTable(metricKey: string) {
-    const willExpand = !dealsTableExpandedByMetric[metricKey];
-    setDealsTableExpandedByMetric((p) => ({ ...p, [metricKey]: willExpand }));
-
-    // Only auto-load on the first expand (even if it results in 0 rows, it's still "loaded").
-    const hasLoadedOnce = Object.prototype.hasOwnProperty.call(tableRowsByMetric, metricKey);
-    if (willExpand && !hasLoadedOnce) {
-      await loadDealsTable(metricKey);
-    }
-  }
-
-  async function loadDealsTable(metricKey: string) {
-    if (!supabase) return;
-    setTableErrByMetric((p) => ({ ...p, [metricKey]: "" }));
-    setTableLoadingByMetric((p) => ({ ...p, [metricKey]: true }));
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-
-      // Get deals from the hypothesis TAL using the existing endpoint
-      const talUrl = String(h?.hubspot_tal_url ?? "").trim();
-      if (!talUrl) throw new Error("No TAL URL configured for this hypothesis.");
-
-      const res = await fetch("/api/hubspot/deals/by-tal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          talUrl: talUrl,
-          hypothesisId: id,
-          maxDeals: 1000,
-          metric: metricKey
-        })
-      });
-      const json = (await res.json()) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed to load deals"));
-
-      let deals = Array.isArray(json?.deals) ? json.deals : [];
-      console.log(`[loadDealsTable] Loaded ${deals.length} deals for metric: ${metricKey}`);
-
-      // Transform deals to match expected format for the table
-      const transformedDeals = deals.map((deal: any) => ({
-        id: deal.id,
-        url: deal.url,
-        dealname: deal.dealname || deal.properties?.dealname || `Deal ${deal.id}`,
-        createdate: deal.createdate || deal.properties?.createdate,
-        dealstage_label: deal.dealstage_label || deal.dealstage || "Unknown Stage",
-        dealstage_id: deal.dealstage,
-        channel: deal.channel || deal.properties?.channel || "Unknown",
-        amount: deal.amount || deal.properties?.amount,
-        stage_category: deal.stage_category || "unknown"
-      }));
-
-      console.log(`[loadDealsTable] Final transformed deals:`, transformedDeals.slice(0, 3));
-      setTableRowsByMetric((p) => ({ ...p, [metricKey]: transformedDeals }));
-    } catch (e: any) {
-      console.error(`[loadDealsTable] Error loading ${metricKey}:`, e);
-      setTableErrByMetric((p) => ({ ...p, [metricKey]: String(e?.message || e) }));
-      setTableRowsByMetric((p) => ({ ...p, [metricKey]: [] }));
-    } finally {
-      setTableLoadingByMetric((p) => ({ ...p, [metricKey]: false }));
-    }
-  }
-
-  /**
-   * Read the loaded row count for a metric table.
-   */
-  function getDealsTableCount(metricKey: string): number | null {
-    const rows = Array.isArray(tableRowsByMetric[metricKey]) ? tableRowsByMetric[metricKey] : null;
-    return rows ? rows.length : null;
-  }
-
-
-  function MetricTable({ metricKey }: { metricKey: string }) {
-    const rows = Array.isArray(tableRowsByMetric[metricKey]) ? tableRowsByMetric[metricKey] : [];
-    const err = String(tableErrByMetric[metricKey] ?? "");
-    const loading = !!tableLoadingByMetric[metricKey];
-    const isExpanded = !!dealsTableExpandedByMetric[metricKey];
-    const hasLoadedOnce = Object.prototype.hasOwnProperty.call(tableRowsByMetric, metricKey);
-    const hubspotPortalId = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? "22603597";
-
-    return (
-      <div className="card" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", marginTop: 12 }}>
-        <div className="cardHeader">
-          <div>
-            <div className="cardTitle">
-              {metricKey === "leads" ? "Leads" : metricKey === "opps" ? "Opportunities" : "Deals"} Details
-            </div>
-            <div className="cardDesc">
-              Deals from TAL filtered by Pipeline funnel · Metric: <span className="mono">{metricKey}</span>
-            </div>
-          </div>
-          <div className="btnRow">
-            <button
-              className="btn"
-              onClick={() => setDealsTableExpandedByMetric((p) => ({ ...p, [metricKey]: false }))}
-              disabled={!isExpanded}
-              title="Hide this table"
-            >
-              Hide
-            </button>
-            <button
-              className="btn btnPrimary"
-              onClick={() => loadDealsTable(metricKey)}
-              disabled={loading}
-              title="Fetch deals again from HubSpot"
-            >
-              {loading ? "Loading..." : hasLoadedOnce ? "Reload" : "Load"}
-            </button>
-          </div>
-        </div>
-        <div className="cardBody">
-          {err ? <div className="notice">Error: <span className="mono">{err}</span></div> : null}
-          {!rows.length ? (
-            <div className="muted2">No deals (or not loaded yet).</div>
-          ) : (
-            <div style={{ overflow: "auto" }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Deal</th>
-                    <th>Created</th>
-                    <th>Stage</th>
-                    <th>Channel</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 100).map((r: any) => (
-                    <tr key={String(r.id)}>
-                      <td>
-                        {(() => {
-                          const id = String(r.id ?? "").trim();
-                          const href = String(r.url ?? "").trim() || (hubspotPortalId && id ? `https://app.hubspot.com/contacts/${hubspotPortalId}/record/0-3/${id}/` : "");
-                          if (!href) {
-                            return (
-                              <span style={{ fontWeight: 600 }}>
-                                {String(r.dealname || r.id)}
-                              </span>
-                            );
-                          }
-                          return (
-                            <a
-                              href={href}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 3, fontWeight: 650 }}
-                              title="Open in HubSpot"
-                            >
-                              {String(r.dealname || r.id)}
-                            </a>
-                          );
-                        })()}
-                      </td>
-                      <td className="mono">{r.createdate ? String(r.createdate).slice(0, 10) : "—"}</td>
-                      <td className="mono">{String(r.dealstage_label ?? r.dealstage_id ?? "—")}</td>
-                      <td>{String(r.channel ?? "—")}</td>
-                      <td className="mono">{r.amount ? `$${Number(r.amount).toLocaleString()}` : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {rows.length > 100 ? <div className="muted2" style={{ marginTop: 8, fontSize: 12 }}>Showing first 100 deals.</div> : null}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const h = bundle?.hypothesis ?? null;
-  // Prefer computed totals from the activity chart when available.
-  const activityTotals = activityChartData?.totals ?? {
-    emails: talContactedStats?.activity?.emails_sent ?? 0,
-    linkedin: talContactedStats?.activity?.linkedin_sent ?? 0,
-    replies: talContactedStats?.activity?.replies ?? 0
-  };
-
-  /**
-   * Preload deals tables so stats reflect table rows.
-   */
-  async function preloadDealsTables() {
-    const talUrl = String(h?.hubspot_tal_url ?? "").trim();
-    if (!talUrl) return;
-    const hasLeads = Object.prototype.hasOwnProperty.call(tableRowsByMetric, "leads");
-    const hasOpps = Object.prototype.hasOwnProperty.call(tableRowsByMetric, "opps");
-    if (!hasLeads) await loadDealsTable("leads");
-    if (!hasOpps) await loadDealsTable("opps");
-  }
-
-  useEffect(() => {
-    // Keep headline counts aligned with table rows.
-    void preloadDealsTables();
-  }, [h?.hubspot_tal_url, supabase, tableRowsByMetric]);
   const checkins = Array.isArray(bundle?.checkins) ? bundle!.checkins : [];
   const calls = Array.isArray(bundle?.calls) ? bundle!.calls : [];
+  const h = bundle?.hypothesis ?? null;
 
   const ownerDisplay = useMemo(() => {
     const uid = String(h?.owner_user_id ?? "").trim();
@@ -2714,182 +1626,13 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
             <div>
               <div className="cardTitle">1) Performance</div>
               <div className="cardDesc">
-                Funnel metrics and activity trend (synced from HubSpot/SmartLead/GetSales).
+                Funnel metrics and activity trend (synced from SmartLead).
               </div>
             </div>
             <div className="btnRow">
-              <button
-                className="btn"
-                onClick={() => loadTalContactedStats(90)}
-                disabled={talContactedLoading}
-              >
-                {talContactedLoading ? "Refreshing..." : "Refresh stats"}
-              </button>
             </div>
           </div>
           <div className="cardBody">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
-              {/* Row: Funnel + Coverage */}
-              <div>
-                <label className="muted" style={{ fontSize: 13 }}>Leads (TAL)</label>
-                <div
-                  className="statField interactive"
-                  title="Toggle Leads deals list"
-                  style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={!!dealsTableExpandedByMetric["leads"]}
-                  onClick={() => toggleDealsTable("leads")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleDealsTable("leads");
-                    }
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; }}
-                  onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                  onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <div style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <div className="statValue">{getDealsTableCount("leads") == null ? "—" : getDealsTableCount("leads")}</div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "rgba(255,255,255,0.82)",
-                        fontSize: 12,
-                        fontWeight: 650
-                      }}
-                      aria-hidden="true"
-                    >
-                      <span>{dealsTableExpandedByMetric["leads"] ? "Hide" : "Details"}</span>
-                      <span
-                        style={{
-                          width: 0,
-                          height: 0,
-                          borderLeft: "5px solid transparent",
-                          borderRight: "5px solid transparent",
-                          borderTop: "6px solid rgba(255,255,255,0.6)",
-                          transform: dealsTableExpandedByMetric["leads"] ? "rotate(180deg)" : "none",
-                          transition: "transform 0.15s ease"
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="muted" style={{ fontSize: 13 }}>Opps (TAL)</label>
-                <div
-                  className="statField interactive"
-                  title="Toggle Opportunities deals list"
-                  style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={!!dealsTableExpandedByMetric["opps"]}
-                  onClick={() => toggleDealsTable("opps")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleDealsTable("opps");
-                    }
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; }}
-                  onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                  onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <div style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <div className="statValue">{getDealsTableCount("opps") == null ? "—" : getDealsTableCount("opps")}</div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "rgba(255,255,255,0.82)",
-                        fontSize: 12,
-                        fontWeight: 650
-                      }}
-                      aria-hidden="true"
-                    >
-                      <span>{dealsTableExpandedByMetric["opps"] ? "Hide" : "Details"}</span>
-                      <span
-                        style={{
-                          width: 0,
-                          height: 0,
-                          borderLeft: "5px solid transparent",
-                          borderRight: "5px solid transparent",
-                          borderTop: "6px solid rgba(255,255,255,0.6)",
-                          transform: dealsTableExpandedByMetric["opps"] ? "rotate(180deg)" : "none",
-                          transition: "transform 0.15s ease"
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="muted" style={{ fontSize: 13 }}>Companies</label>
-                <div className="statField" title="Touched (90d) / Total in TAL">
-                  <div className="statValue">
-                    {talContactedStats?.totals?.companies
-                      ? `${talContactedStats.contacted.companies} / ${talContactedStats.totals.companies}`
-                      : (editing?.tal_companies_count_baseline ?? "—")}
-                  </div>
-                </div>
-                <div className="muted2" style={{ fontSize: 11, marginTop: 4 }}>
-                  {talContactedStats?.totals?.companies ? `Coverage: ${Math.round((talContactedStats.contacted.companies / talContactedStats.totals.companies) * 100)}%` : ""}
-                </div>
-              </div>
-              <div>
-                <label className="muted" style={{ fontSize: 13 }}>Contacts</label>
-                <div className="statField" title="Touched (90d) / Total in TAL">
-                  <div className="statValue">
-                    {talContactedStats?.totals?.contacts
-                      ? `${talContactedStats.contacted.contacts} / ${talContactedStats.totals.contacts}`
-                      : (editing?.contacts_count_baseline ?? "—")}
-                  </div>
-                </div>
-                <div className="muted2" style={{ fontSize: 11, marginTop: 4 }}>
-                  {talContactedStats?.totals?.contacts ? `Coverage: ${Math.round((talContactedStats.contacted.contacts / talContactedStats.totals.contacts) * 100)}%` : ""}
-                </div>
-              </div>
-              <div>
-                <label className="muted" style={{ fontSize: 13 }}>Companies w/ Contacts</label>
-                <div className="statField" title="Companies in TAL with at least one TAL contact">
-                  <div className="statValue">
-                    {talContactedStats?.totals?.companies
-                      ? `${talContactedStats?.coverage?.companies_with_contacts ?? 0} / ${talContactedStats.totals.companies}`
-                      : "—"}
-                  </div>
-                </div>
-                <div className="muted2" style={{ fontSize: 11, marginTop: 4 }}>
-                  {talContactedStats?.totals?.companies
-                    ? `Coverage: ${Math.round(((talContactedStats?.coverage?.companies_with_contacts ?? 0) / talContactedStats.totals.companies) * 100)}%`
-                    : ""}
-                </div>
-              </div>
-            </div>
-
-            {/* Expandable Tables for Leads and Opps */}
-            {dealsTableExpandedByMetric["leads"] && (
-              <MetricTable metricKey="leads" />
-            )}
-            {dealsTableExpandedByMetric["opps"] && (
-              <MetricTable metricKey="opps" />
-            )}
-
             {/* Activity Graph */}
             <div style={{ marginTop: 24 }}>
               <ActivityLines
@@ -2898,9 +1641,9 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
                 series={activityChartData?.series || []}
                 right={
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <span className="tag">Emails: {activityTotals.emails}</span>
-                    <span className="tag">LinkedIn: {activityTotals.linkedin}</span>
-                    <span className="tag">Replies: {activityTotals.replies}</span>
+                    <span className="tag">Emails: {activityChartData?.totals?.emails ?? 0}</span>
+                    <span className="tag">LinkedIn: {activityChartData?.totals?.linkedin ?? 0}</span>
+                    <span className="tag">Replies: {activityChartData?.totals?.replies ?? 0}</span>
                   </div>
                 }
               />
@@ -2927,222 +1670,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
                 <summary className="btn">Actions</summary>
                 <div className="card popoverPanel">
                   <div className="cardBody">
-                    <div className="muted2" style={{ fontSize: 12, marginBottom: 8 }}>HubSpot</div>
-
-                    <button
-                      className="btn btnPrimary"
-                      onClick={syncBaselinesFromHubspot}
-                      disabled={hubspotBaselinesLoading}
-                      style={{ width: "100%", justifyContent: "center" }}
-                    >
-                      {hubspotBaselinesLoading ? "Syncing..." : "Sync baselines (exact)"}
-                    </button>
-                    <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>
-                      Caches TAL membership and updates Companies/Leads/Opps/Contacts (all TAL-company contacts).
-                    </div>
-                    <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>
-                      Coverage is based on HubSpot touches (email/meeting/call), excluding NOTE/TASK. Touch sync runs in background.
-                    </div>
-
-                    <button
-                      className="btn"
-                      onClick={loadRecentTouchSample}
-                      disabled={recentTouchSampleLoading}
-                      style={{ width: "100%", justifyContent: "center", marginTop: 10 }}
-                    >
-                      {recentTouchSampleLoading ? "Loading recent touches…" : "Recent touches (90d)"}
-                    </button>
-                    {recentTouchSampleErr ? (
-                      <div className="notice" style={{ marginTop: 10 }}>
-                        <span className="mono">{recentTouchSampleErr}</span>
-                      </div>
-                    ) : null}
-                    {recentTouchSample ? (
-                      <div style={{ marginTop: 10 }}>
-                        <div className="muted2" style={{ fontSize: 12, marginBottom: 6 }}>Companies (sample)</div>
-                        <div className="tableWrap">
-                          <table className="table">
-                            <thead>
-                              <tr>
-                                <th>company_id</th>
-                                <th>last_touch_at</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(recentTouchSample.companies ?? []).slice(0, 10).map((r: any) => (
-                                <tr key={`c:${String(r.company_id)}`}>
-                                  <td className="mono">{String(r.company_id)}</td>
-                                  <td className="mono">{String(r.last_touch_at ?? "").slice(0, 19)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <div className="muted2" style={{ fontSize: 12, margin: "10px 0 6px" }}>Contacts (sample)</div>
-                        <div className="tableWrap">
-                          <table className="table">
-                            <thead>
-                              <tr>
-                                <th>contact_id</th>
-                                <th>company_id</th>
-                                <th>type</th>
-                                <th>last_touch_at</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(recentTouchSample.contacts ?? []).slice(0, 10).map((r: any) => (
-                                <tr key={`ct:${String(r.contact_id)}`}>
-                                  <td className="mono">{String(r.contact_id)}</td>
-                                  <td className="mono">{String(r.company_id)}</td>
-                                  <td className="mono">{String(r.last_touch_type ?? "—")}</td>
-                                  <td className="mono">{String(r.last_touch_at ?? "").slice(0, 19)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Advanced HubSpot analytics controls are intentionally hidden to keep UI minimal.
-                        (Endpoints still exist; can be re-added when needed.) */}
-                    <div className="divider" />
-                    <div className="muted2" style={{ fontSize: 12, marginBottom: 8 }}>Links (edit here)</div>
-                    <div className="grid formGridTight">
-                      <div style={{ gridColumn: "span 12" }}>
-                        <label className="muted" style={{ fontSize: 13 }}>TAL link *</label>
-                        <input
-                          className="input"
-                          value={editing?.hubspot_tal_url ?? ""}
-                          onChange={(e) => (editing ? setEditing({ ...editing, hubspot_tal_url: e.target.value }) : null)}
-                          onBlur={() => autosaveHypothesisOnBlur({ hubspot_tal_url: editing?.hubspot_tal_url })}
-                          placeholder="HubSpot list URL"
-                        />
-                      </div>
-                      <div style={{ gridColumn: "span 12" }}>
-                        <label className="muted" style={{ fontSize: 13 }}>Contacts list *</label>
-                        <input
-                          className="input"
-                          value={editing?.hubspot_contacts_list_url ?? ""}
-                          onChange={(e) => (editing ? setEditing({ ...editing, hubspot_contacts_list_url: e.target.value }) : null)}
-                          onBlur={() => autosaveHypothesisOnBlur({ hubspot_contacts_list_url: editing?.hubspot_contacts_list_url })}
-                          placeholder="HubSpot contacts list URL"
-                        />
-                      </div>
-                      <div style={{ gridColumn: "span 12" }}>
-                        <label className="muted" style={{ fontSize: 13 }}>Deals view</label>
-                        <input
-                          className="input"
-                          value={editing?.hubspot_deals_view_url ?? ""}
-                          onChange={(e) => (editing ? setEditing({ ...editing, hubspot_deals_view_url: e.target.value }) : null)}
-                          onBlur={() => autosaveHypothesisOnBlur({ hubspot_deals_view_url: editing?.hubspot_deals_view_url })}
-                          placeholder="HubSpot deals view URL"
-                        />
-                      </div>
-                      <div style={{ gridColumn: "span 12" }} className="btnRow" >
-                        <button className="btn btnPrimary" onClick={saveHubspotLinksOnly} disabled={!editing} style={{ width: "100%", justifyContent: "center" }}>
-                          Save links
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="divider" />
-                    <div className="muted2" style={{ fontSize: 12, marginBottom: 8 }}>SmartLead</div>
-                    <div className="grid formGridTight">
-                      <div style={{ gridColumn: "span 12" }}>
-                        <label className="muted" style={{ fontSize: 13 }}>Campaigns (optional)</label>
-                        <div
-                          style={{
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: 10,
-                            padding: "8px 10px",
-                            maxHeight: 220,
-                            overflow: "auto",
-                            background: "rgba(255,255,255,0.02)"
-                          }}
-                        >
-                          {(smartleadCampaigns || []).map((c: any) => {
-                            const id = String(c?.id ?? "").trim();
-                            const name = String(c?.name ?? "").trim();
-                            const st = String(c?.status ?? "unknown").trim();
-                            const stLabel = st === "active" ? "Active" : st === "paused" ? "Paused" : "Unknown";
-                            const isChecked = smartleadCampaignDraft.includes(id);
-                            return (
-                              <label key={id || name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 2px" }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  disabled={smartleadCampaignsLoading}
-                                  onChange={() => toggleSmartleadCampaignDraft(id)}
-                                />
-                                <span>{name ? `${name} (#${id})` : `Campaign #${id}`}</span>
-                                <span className="muted2" style={{ fontSize: 11 }}>· {stLabel}</span>
-                              </label>
-                            );
-                          })}
-                          {!smartleadCampaignsLoading && !(smartleadCampaigns || []).length ? (
-                            <div className="muted2" style={{ fontSize: 12, padding: "4px 2px" }}>
-                              No campaigns found.
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>
-                          Affects the activity graph for this hypothesis only.
-                        </div>
-                        {smartleadCampaignsErr ? (
-                          <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>
-                            Campaigns load error: <span className="mono">{smartleadCampaignsErr}</span>
-                          </div>
-                        ) : smartleadCampaignsLoading ? (
-                          <div className="muted2" style={{ fontSize: 12, marginTop: 6 }}>Loading SmartLead campaigns…</div>
-                        ) : null}
-                        <div className="btnRow" style={{ marginTop: 8 }}>
-                          <button
-                            className="btn btnPrimary"
-                            onClick={() => applySmartleadCampaignSelection(smartleadCampaignDraft)}
-                            disabled={smartleadCampaignsLoading || smartleadSelectionSame(smartleadCampaignDraft, smartleadCampaignIds)}
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="divider" />
-                    <div className="divider" />
-                    <div className="btnRow" style={{ justifyContent: "flex-start", gap: 8, flexWrap: "wrap" }}>
-                      {editing?.hubspot_tal_url || h?.hubspot_tal_url ? (
-                        <a className="btn" href={String(editing?.hubspot_tal_url ?? h?.hubspot_tal_url)} target="_blank" rel="noreferrer">
-                          Open TAL
-                        </a>
-                      ) : null}
-                      {editing?.hubspot_deals_view_url || h?.hubspot_deals_view_url ? (
-                        <a className="btn" href={String(editing?.hubspot_deals_view_url ?? h?.hubspot_deals_view_url)} target="_blank" rel="noreferrer">
-                          Open deals view
-                        </a>
-                      ) : null}
-                      {editing?.hubspot_contacts_list_url || h?.hubspot_contacts_list_url ? (
-                        <a className="btn" href={String(editing?.hubspot_contacts_list_url ?? h?.hubspot_contacts_list_url)} target="_blank" rel="noreferrer">
-                          Open contacts list
-                        </a>
-                      ) : null}
-                    </div>
-                    {hubspotBaselinesErr ? (
-                      <div className="notice" style={{ marginTop: 10 }}>
-                        HubSpot error: <span className="mono">{hubspotBaselinesErr}</span>
-                      </div>
-                    ) : null}
-                    {hubspotWeeklyErr ? (
-                      <div className="notice" style={{ marginTop: 10 }}>
-                        HubSpot error: <span className="mono">{hubspotWeeklyErr}</span>
-                      </div>
-                    ) : null}
-                    {hubspotDealsErr ? (
-                      <div className="notice" style={{ marginTop: 10 }}>
-                        HubSpot error: <span className="mono">{hubspotDealsErr}</span>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </details>
@@ -3333,95 +1860,6 @@ export default function HypothesisDetailPage({ params }: { params: { id: string 
                     </div>
                   </div>
                 </div>
-
-                <div style={{ gridColumn: "span 12" }} className="subcard">
-                  <div className="subcardTitle">HubSpot</div>
-                  <div className="grid formGridTight">
-                    <div style={{ gridColumn: "span 4" }}>
-                      <label className="muted" style={{ fontSize: 13 }}>Vertical name</label>
-                      <input
-                        className="input"
-                        value={editing.vertical_name ?? ""}
-                        onChange={(e) => setEditing({ ...editing, vertical_name: e.target.value })}
-                        onBlur={() => autosaveHypothesisOnBlur({ vertical_name: editing.vertical_name })}
-                      />
-                      <div className="helpInline">Vertical reference link is derived from the TAL link.</div>
-                    </div>
-                    <div style={{ gridColumn: "span 8" }}>
-                      <label className="muted" style={{ fontSize: 13 }}>Client profile (TAL / segment description)</label>
-                      <textarea
-                        className="textarea textareaAutoGrow"
-                        value={editing.company_profile_text ?? ""}
-                        onChange={(e) => setEditing({ ...editing, company_profile_text: e.target.value })}
-                        onInput={(e) => {
-                          const el = e.currentTarget;
-                          el.style.height = "auto";
-                          el.style.height = `${el.scrollHeight}px`;
-                        }}
-                        onBlur={() => autosaveHypothesisOnBlur({ company_profile_text: editing.company_profile_text })}
-                        style={{ minHeight: 64 }}
-                      />
-                    </div>
-                    <div style={{ gridColumn: "span 12" }}>
-                      {hubspotBaselines ? (
-                        <div className="helpInline">
-                          Baselines: TAL <span className="mono">#{hubspotBaselines.tal_list_id || "?"}</span> · Companies{" "}
-                          <span className="mono">{hubspotBaselines.companies_scanned}</span> · Deals{" "}
-                          <span className="mono">{hubspotBaselines.deals_found}</span> · Contacts{" "}
-                          <span className="mono">{hubspotBaselines.contacts_found}</span>
-                        </div>
-                      ) : (
-                        <div className="helpInline">Use Actions → HubSpot to sync baselines and load analytics.</div>
-                      )}
-                      {hubspotTalCacheJob?.status === "running" ? (
-                        <div className="helpInline" style={{ marginTop: 6 }}>
-                          Syncing…
-                          {hubspotTalCacheJob.phase ? (
-                            <>
-                              {" "}
-                              <span className="mono">({String(hubspotTalCacheJob.phase)})</span>
-                            </>
-                          ) : null}
-                          {hubspotTalCacheJob.updated_at ? (
-                            <>
-                              {" "}
-                              <span className="mono">({formatCET(hubspotTalCacheJob.updated_at)} CET)</span>
-                            </>
-                          ) : null}
-                        </div>
-                      ) : hubspotTalCacheJob?.status === "done" ? (
-                        <div className="helpInline" style={{ marginTop: 6 }}>
-                          Synced.
-                          {hubspotTalCacheJob.finished_at ? (
-                            <>
-                              {" "}
-                              <span className="mono">({formatCET(hubspotTalCacheJob.finished_at)} CET)</span>
-                            </>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {hubspotTalCacheJob?.error ? (
-                        <div className="helpInline" style={{ marginTop: 6 }}>
-                          <span className="mono">{String(hubspotTalCacheJob.error)}</span>
-                        </div>
-                      ) : null}
-                      {!hubspotBaselinesLoading && hubspotTalCacheJobErr ? (
-                        <div className="helpInline" style={{ marginTop: 6 }}>
-                          {hubspotTalCacheJobErr}
-                        </div>
-                      ) : null}
-                    </div>
-
-
-                    <div style={{ gridColumn: "span 3" }}>
-                      <label className="muted" style={{ fontSize: 13 }}>Updated</label>
-                      <div className="statField" aria-readonly="true" title="Read-only">
-                        <div className="statValue">{isoDate(editing.updated_at ?? editing.created_at)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div style={{ gridColumn: "span 12" }} className="subcard">
                   <div className="subcardTitle">Messaging</div>
                   <div className="grid formGridTight">

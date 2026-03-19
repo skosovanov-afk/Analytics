@@ -7,29 +7,15 @@ import { createClient } from "@supabase/supabase-js";
 // to ensure we can read all analytics, OR use the user's session if RLS is set up.
 // Given previous patterns, we check for a token.
 
-/**
- * Extract HubSpot list ID from a TAL URL.
- *
- * We accept both `/lists/<id>` and `/objectLists/<id>` forms.
- */
-function parseHubspotListIdFromUrl(url: string | null | undefined) {
-    const t = String(url ?? "").trim();
-    const m = t.match(/\/(?:lists|objectLists)\/(\d+)(?:\b|\/|\?|#)/i);
-    return m?.[1] ? m[1] : null;
-}
-
 export async function POST(req: Request) {
     try {
         const json = await req.json();
-        const { hypothesisId, days = 30, hubspot_tal_url, tal_list_id } = json ?? {};
+        const { hypothesisId, days = 30, tal_list_id } = json ?? {};
 
-        // Prefer TAL list ID because it matches the RPC used for daily series.
-        const talListId =
-            String(tal_list_id ?? "").trim() ||
-            parseHubspotListIdFromUrl(hubspot_tal_url);
+        const talListId = String(tal_list_id ?? "").trim();
 
         if (!hypothesisId && !talListId) {
-            return NextResponse.json({ ok: false, error: "Missing hypothesisId or hubspot_tal_url" }, { status: 400 });
+            return NextResponse.json({ ok: false, error: "Missing hypothesisId or tal_list_id" }, { status: 400 });
         }
 
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";

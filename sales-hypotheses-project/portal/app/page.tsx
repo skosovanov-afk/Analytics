@@ -1817,127 +1817,6 @@ export default function HomePage() {
     setDashStatus("");
   }
 
-  async function syncOnce(opts: { backfillYear: boolean; debug?: boolean }) {
-    if (!supabase) return;
-    setDashStatus("Syncing now...");
-    const sess = await supabase.auth.getSession();
-    const token = sess.data.session?.access_token ?? "";
-    if (!token) return setDashStatus("Not signed in.");
-
-    const res = await fetch("/api/hubspot/global/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        force: selectedPipelineIds.length > 0 || selectedStageIds.length > 0,
-        backfill_weeks: opts.backfillYear ? 52 : 0,
-        batch_weeks: opts.backfillYear ? 2 : 1,
-        debug: !!opts.debug,
-        pipeline_ids: selectedPipelineIds,
-        stage_ids: selectedStageIds
-      })
-    });
-    const json = (await res.json()) as any;
-    if (!res.ok || !json?.ok) {
-      setDashStatus(`Sync error: ${String(json?.error ?? "failed")}`);
-      return;
-    }
-    const processed = Array.isArray(json?.processed_weeks) ? json.processed_weeks : [];
-    const remaining = Number(json?.remaining_missing ?? 0) || 0;
-    if (!processed.length && remaining === 0) setDashStatus("Up to date.");
-    else {
-      const last = processed[processed.length - 1] ?? null;
-      const extra = last?.created_in_window != null ? ` created_in_window=${String(last.created_in_window)}` : "";
-      setDashStatus(`Synced ${processed.length} week(s). Remaining: ${remaining}.${extra}`);
-      if (opts.debug && last?.top_stages) {
-        // keep it short
-        const top = Array.isArray(last.top_stages) ? last.top_stages : [];
-        const s = top.slice(0, 3).map((x: any) => `${x.label}:${x.count}`).join(", ");
-        if (s) setDashStatus(`Synced ${processed.length} week(s). Remaining: ${remaining}.${extra} Top stages: ${s}`);
-      }
-    }
-    await loadGlobal();
-    return { remaining };
-  }
-
-  async function syncDailyOnce(opts: { backfillYear: boolean }) {
-    if (!supabase) return;
-    const sess = await supabase.auth.getSession();
-    const token = sess.data.session?.access_token ?? "";
-    if (!token) throw new Error("Not signed in.");
-    if (!selectedPipelineIds.length) throw new Error("Select at least one pipeline first.");
-
-    const res = await fetch("/api/hubspot/global/daily/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        force: false,
-        pipeline_ids: selectedPipelineIds,
-        backfill_days: opts.backfillYear ? 365 : 8,
-        batch_days: opts.backfillYear ? 14 : 2,
-        maxDealsPerDay: 4000,
-        maxDealsModifiedPerDay: 700
-      })
-    });
-    const json = (await res.json()) as any;
-    if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Daily sync failed"));
-    return { remaining: Number(json?.remaining_missing ?? 0) || 0, processed: Array.isArray(json?.processed_days) ? json.processed_days : [] };
-  }
-
-  async function loadStock() {
-    if (!supabase) return;
-    // Keep UI minimal: reuse dashStatus for short-lived loading/errors.
-    setDashStatus("Loading funnel counts...");
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      if (!selectedPipelineIds.length) {
-        throw new Error("Select at least one pipeline first.");
-      }
-      const res = await fetch("/api/hubspot/deals/stock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          pipeline_ids: selectedPipelineIds,
-          stage_ids: selectedStageIds,
-          maxDeals: 10000,
-          // If user picked a date range, use its start as baseline for delta (best-effort).
-          since_ymd: dateRangeTouched && dateRange?.since ? String(dateRange.since) : undefined
-        })
-      });
-      const json = (await res.json()) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed"));
-      setStock(json);
-      setDashStatus("");
-    } catch (e: any) {
-      setStock(null);
-      setDashStatus(String(e?.message || e));
-    }
-  }
-
-  const lastStockKeyRef = useRef<string>("");
-  // Auto-refresh funnel counts when date range changes (delta baseline depends on since_ymd).
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!supabase) return;
-    if (!selectedPipelineIds.length) return;
-    const since = dateRangeTouched && dateRange?.since ? String(dateRange.since) : "";
-    const until = dateRangeTouched && dateRange?.until ? String(dateRange.until) : "";
-    const key = `${selectedPipelineIds.join(",")}|${selectedStageIds.join(",")}|${dateRangeTouched ? "1" : "0"}|${since}|${until}`;
-    if (lastStockKeyRef.current === key) return;
-    lastStockKeyRef.current = key;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      if (cancelled) return;
-      loadStock();
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionEmail, supabase, selectedPipelineIds.join(","), selectedStageIds.join(","), dateRangeTouched, dateRange.since, dateRange.until]);
-
   async function syncNow() {
     // Manual sync: run the unified sync flow (same as cron), then refresh UI.
     try {
@@ -2023,24 +1902,6 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionEmail, period, supabase]);
 
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!supabase) return;
-    (async () => {
-      try {
-        const sess = await supabase.auth.getSession();
-        const token = sess.data.session?.access_token ?? "";
-        if (!token) return;
-        const res = await fetch("/api/hubspot/deals/pipelines", { headers: { Authorization: `Bearer ${token}` } });
-        const json = (await res.json()) as any;
-        if (!res.ok || !json?.ok) return;
-        setPipelines(Array.isArray(json?.pipelines) ? json.pipelines : []);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [sessionEmail, supabase]);
-
   // Auto-select a reasonable default pipeline (reduces user steps).
   useEffect(() => {
     if (!pipelines.length) return;
@@ -2053,17 +1914,6 @@ export default function HomePage() {
     if (id) setSelectedPipelineIds([id]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipelines.length]);
-
-  // Debounced auto-refresh of funnel counts when filters change (no extra button).
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!selectedPipelineIds.length) return;
-    const t = setTimeout(() => {
-      loadStock();
-    }, 450);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionEmail, selectedPipelineIds.join(","), selectedStageIds.join(",")]);
 
   useEffect(() => {
     if (!sessionEmail) return;
@@ -2513,188 +2363,6 @@ export default function HomePage() {
     });
   }, [smartleadEvents, smartleadCampaignIds.join(","), activitiesOnlyPushed, dateRange.since, dateRange.until]);
 
-  // GetSales influence over HubSpot created deals (best-effort attribution by contact email)
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!supabase) return;
-    if (viewMode !== "activities") return;
-    if (!selectedPipelineIds.length) return;
-    const since = String(dateRange?.since || "");
-    const until = String(dateRange?.until || "");
-    if (!since || !until) return;
-
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        setGetsalesInfluenceErr("");
-        setGetsalesInfluenceLoading(true);
-        const sess = await supabase.auth.getSession();
-        const token = sess.data.session?.access_token ?? "";
-        if (!token) throw new Error("Not signed in.");
-
-        const untilExcl = ymdAddDaysLocal(until, 1);
-        const res = await fetch("/api/hubspot/global/daily/deals", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            since,
-            until: untilExcl,
-            pipeline_ids: selectedPipelineIds,
-            stage_ids: [], // influence is computed on all created deals in pipeline
-            // Avoid hammering HubSpot on page load; influence is best-effort and can be rate limited (429).
-            maxDeals: 600,
-            include_getsales_influence: true,
-            getsales_lookback_days: Math.max(1, Number(getsalesInfluenceLookbackDays) || 180)
-          })
-        });
-        const json = (await res.json()) as any;
-        if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed"));
-        if (cancelled) return;
-
-        const deals = Array.isArray(json?.deals) ? json.deals : [];
-        const influencedDeals = deals
-          .filter((d: any) => Boolean(d?.influenced_getsales))
-          .sort((a: any, b: any) => String(b?.createdate ?? "").localeCompare(String(a?.createdate ?? "")))
-          .slice(0, 200);
-        const days = daysInclusive(since, until);
-        const idx = new Map(days.map((d, i) => [d, i]));
-        const init = () => days.map(() => 0);
-        const series: Record<string, number[]> = {
-          influenced_deals_created: init(),
-          influenced_leads_created: init(),
-          influenced_opps_created: init(),
-          influenced_clients_created: init()
-        };
-
-        for (const d of influencedDeals) {
-          const created = String(d?.createdate ?? "").trim();
-          const day = created ? created.slice(0, 10) : "";
-          const i = idx.get(day);
-          if (i == null) continue;
-          series.influenced_deals_created[i] += 1;
-          const b = String(d?.stage_bucket ?? "").trim().toLowerCase();
-          if (b === "leads" || b === "sql") series.influenced_leads_created[i] += 1;
-          else if (b === "opportunity") series.influenced_opps_created[i] += 1;
-          else if (b === "clients") series.influenced_clients_created[i] += 1;
-        }
-
-        const totals = Object.fromEntries(Object.keys(series).map((k) => [k, (series[k] || []).reduce((sum, v) => sum + (Number(v) || 0), 0)]));
-        setGetsalesInfluence({
-          days,
-          series,
-          totals,
-          influencedDeals,
-          debug: json?.getsales_influence_debug ?? null,
-          truncated: Boolean(json?.getsales_influence_truncated),
-          lookbackDays: Number(json?.getsales_lookback_days ?? getsalesInfluenceLookbackDays) || getsalesInfluenceLookbackDays
-        });
-      } catch (e: any) {
-        if (cancelled) return;
-        setGetsalesInfluence(null);
-        setGetsalesInfluenceErr(String(e?.message || e));
-      } finally {
-        if (!cancelled) setGetsalesInfluenceLoading(false);
-      }
-    }, 450);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [sessionEmail, supabase, viewMode, selectedPipelineIds.join(","), dateRange.since, dateRange.until, getsalesInfluenceLookbackDays]);
-
-  // SmartLead influence over HubSpot created deals (best-effort attribution by contact email)
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!supabase) return;
-    if (viewMode !== "activities") return;
-    if (!selectedPipelineIds.length) return;
-    if (activityReportTab !== "email") return;
-    const since = String(dateRange?.since || "");
-    const until = String(dateRange?.until || "");
-    if (!since || !until) return;
-
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        setSmartleadInfluenceErr("");
-        setSmartleadInfluenceLoading(true);
-        const sess = await supabase.auth.getSession();
-        const token = sess.data.session?.access_token ?? "";
-        if (!token) throw new Error("Not signed in.");
-
-        const untilExcl = ymdAddDaysLocal(until, 1);
-        const res = await fetch("/api/hubspot/global/daily/deals", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            since,
-            until: untilExcl,
-            pipeline_ids: selectedPipelineIds,
-            stage_ids: [],
-            // Avoid hammering HubSpot on page load; influence is best-effort and can be rate limited (429).
-            maxDeals: 600,
-            include_smartlead_influence: true,
-            smartlead_lookback_days: Math.max(1, Number(smartleadInfluenceLookbackDays) || 180),
-            smartlead_campaign_ids: smartleadCampaignIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
-          })
-        });
-        const json = (await res.json()) as any;
-        if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed"));
-        if (cancelled) return;
-
-        const deals = Array.isArray(json?.deals) ? json.deals : [];
-        const influencedDeals = deals
-          .filter((d: any) => Boolean(d?.influenced_smartlead))
-          .sort((a: any, b: any) => String(b?.createdate ?? "").localeCompare(String(a?.createdate ?? "")))
-          .slice(0, 200);
-        const days = daysInclusive(since, until);
-        const idx = new Map(days.map((d, i) => [d, i]));
-        const init = () => days.map(() => 0);
-        const series: Record<string, number[]> = {
-          influenced_deals_created: init(),
-          influenced_leads_created: init(),
-          influenced_opps_created: init(),
-          influenced_clients_created: init()
-        };
-
-        for (const d of influencedDeals) {
-          const created = String(d?.createdate ?? "").trim();
-          const day = created ? created.slice(0, 10) : "";
-          const i = idx.get(day);
-          if (i == null) continue;
-          series.influenced_deals_created[i] += 1;
-          const b = String(d?.stage_bucket ?? "").trim().toLowerCase();
-          if (b === "leads" || b === "sql") series.influenced_leads_created[i] += 1;
-          else if (b === "opportunity") series.influenced_opps_created[i] += 1;
-          else if (b === "clients") series.influenced_clients_created[i] += 1;
-        }
-
-        const totals = Object.fromEntries(Object.keys(series).map((k) => [k, (series[k] || []).reduce((sum, v) => sum + (Number(v) || 0), 0)]));
-        setSmartleadInfluence({
-          days,
-          series,
-          totals,
-          influencedDeals,
-          debug: json?.smartlead_influence_debug ?? null,
-          truncated: Boolean(json?.smartlead_influence_truncated),
-          lookbackDays: Number(json?.smartlead_lookback_days ?? smartleadInfluenceLookbackDays) || smartleadInfluenceLookbackDays
-        });
-      } catch (e: any) {
-        if (cancelled) return;
-        setSmartleadInfluence(null);
-        setSmartleadInfluenceErr(String(e?.message || e));
-      } finally {
-        if (!cancelled) setSmartleadInfluenceLoading(false);
-      }
-    }, 450);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [sessionEmail, supabase, viewMode, selectedPipelineIds.join(","), dateRange.since, dateRange.until, activityReportTab, smartleadInfluenceLookbackDays, smartleadCampaignIds.join(",")]);
-
   const activityChart = useMemo(() => {
     const baseRaw = Array.isArray(getsalesReport?.chartSeries) ? getsalesReport.chartSeries : [];
     const days = Array.isArray(getsalesReport?.days) ? getsalesReport.days : [];
@@ -2852,48 +2520,6 @@ export default function HomePage() {
     const start = fmt(parseMs(max) - (90 - 1) * 86400000);
     setDateRange({ since: start < min ? min : start, until: max });
   }, [dailyAgg?.minDay, dailyAgg?.maxDay, dateRangeTouched, dateRange.since, dateRange.until]);
-
-  // Stage-to-stage conversions for the "new deals cohort" in the selected date range (HubSpot-based).
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!supabase) return;
-    if (!selectedPipelineIds.length) return;
-    const since = String(dateRange?.since || dailyAgg?.minDay || "");
-    const until = String(dateRange?.until || dailyAgg?.maxDay || "");
-    if (!since || !until) return;
-
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        setStageConvsErr("");
-        setStageConvsLoading(true);
-        const sess = await supabase.auth.getSession();
-        const token = sess.data.session?.access_token ?? "";
-        if (!token) throw new Error("Not signed in.");
-
-        const res = await fetch("/api/hubspot/deals/conversions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ since, until, pipeline_ids: selectedPipelineIds, maxDeals: 800, mode: stageConvsMode })
-        });
-        const json = (await res.json()) as any;
-        if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed"));
-        if (!cancelled) setStageConvs(json);
-      } catch (e: any) {
-        if (!cancelled) {
-          setStageConvs(null);
-          setStageConvsErr(String(e?.message || e));
-        }
-      } finally {
-        if (!cancelled) setStageConvsLoading(false);
-      }
-    }, 450);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [sessionEmail, supabase, selectedPipelineIds.join(","), dateRange.since, dateRange.until, dailyAgg.minDay, dailyAgg.maxDay, stageConvsMode]);
 
   function startOfWeekISOFromYmd(dayYmd: string) {
     const d = new Date(`${dayYmd}T00:00:00.000Z`);
@@ -3054,21 +2680,6 @@ export default function HomePage() {
     effectiveStageIdsForDeals.join(",")
   ]);
 
-  const lastLoadedRef = useRef<string>("");
-  // Auto-load table for the current date range (same data the chart is built from).
-  useEffect(() => {
-    if (!sessionEmail) return;
-    if (!selectedPipelineIds.length) return;
-    const since = String(dateRange?.since ?? "");
-    const until = String(dateRange?.until ?? "");
-    if (!since || !until) return;
-    const key = `${since}|${until}|${selectedPipelineIds.join(",")}|${effectiveStageIdsForDeals.join(",")}`;
-    if (lastLoadedRef.current === key) return;
-    lastLoadedRef.current = key;
-    loadDealsTableForRange("new_deals", since, until);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionEmail, selectedPipelineIds.join(","), effectiveStageIdsForDeals.join(","), dateRange.since, dateRange.until]);
-
   function buildDailySeries() {
     const buckets = chartBucketsDaily.buckets || [];
     if (colorMode === "hypothesis") {
@@ -3170,35 +2781,6 @@ export default function HomePage() {
     const days = Math.min(500, Math.floor((uMs - sMs) / 86400000) + 1);
     for (let i = 0; i < days; i++) out.push(ymdAddDaysLocal(s, i));
     return out;
-  }
-
-  async function loadDealsTableForRange(metricKey: string, sinceInclusiveYmd: string, untilInclusiveYmd: string) {
-    if (!supabase) return;
-    setTableErrByMetric((p) => ({ ...p, [metricKey]: "" }));
-    setTableLoadingByMetric((p) => ({ ...p, [metricKey]: true }));
-    try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token ?? "";
-      if (!token) throw new Error("Not signed in.");
-      if (!selectedPipelineIds.length) throw new Error("Select a pipeline first.");
-      const since = String(sinceInclusiveYmd ?? "");
-      const until = ymdAddDaysLocal(String(untilInclusiveYmd ?? ""), 1); // exclusive
-      if (!since || !until) throw new Error("Missing date range.");
-      const res = await fetch("/api/hubspot/global/daily/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ since, until, pipeline_ids: selectedPipelineIds, stage_ids: effectiveStageIdsForDeals, maxDeals: 5000 })
-      });
-      const json = (await res.json()) as any;
-      if (!res.ok || !json?.ok) throw new Error(String(json?.error ?? "Failed"));
-      const deals = Array.isArray(json?.deals) ? json.deals : [];
-      setTableRowsByMetric((p) => ({ ...p, [metricKey]: deals }));
-    } catch (e: any) {
-      setTableErrByMetric((p) => ({ ...p, [metricKey]: String(e?.message || e) }));
-      setTableRowsByMetric((p) => ({ ...p, [metricKey]: [] }));
-    } finally {
-      setTableLoadingByMetric((p) => ({ ...p, [metricKey]: false }));
-    }
   }
 
 
@@ -3349,110 +2931,6 @@ export default function HomePage() {
     return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
   }
 
-  function MetricTable({ metricKey }: { metricKey: string }) {
-    const rows = Array.isArray(tableRowsByMetric[metricKey]) ? tableRowsByMetric[metricKey] : [];
-    const err = String(tableErrByMetric[metricKey] ?? "");
-    const loading = !!tableLoadingByMetric[metricKey];
-    const since = String(dateRange?.since ?? "");
-    const until = String(dateRange?.until ?? "");
-
-    return (
-      <div className="card" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="cardHeader">
-          <div>
-            <div className="cardTitle">Table view</div>
-            <div className="cardDesc">
-              Deals created · Range <span className="mono">{since || "—"}</span> → <span className="mono">{until || "—"}</span> · Metric:{" "}
-              <span className="mono">{metricKey}</span>
-            </div>
-          </div>
-          <div className="btnRow">
-            <button
-              className="btn btnPrimary"
-              onClick={() => since && until && loadDealsTableForRange(metricKey, since, until)}
-              disabled={!since || !until || !selectedPipelineIds.length || loading}
-            >
-              {loading ? "Loading..." : "Load"}
-            </button>
-          </div>
-        </div>
-        <div className="cardBody">
-          {err ? <div className="notice">Error: <span className="mono">{err}</span></div> : null}
-          {!rows.length ? (
-            <div className="muted2">No deals (or not loaded yet).</div>
-          ) : (
-            <div style={{ overflow: "auto" }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Deal</th>
-                    <th>Pipeline</th>
-                    <th>Created</th>
-                    <th>Last modified</th>
-                    <th>Stage</th>
-                    <th>Channel</th>
-                    <th>Hypothesis</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 500).map((r: any) => (
-                    <tr key={String(r.id)}>
-                      <td>
-                        {(() => {
-                          const id = String(r.id ?? "").trim();
-                          const href = String(r.url ?? "").trim() || (hubspotPortalId && id ? `https://app.hubspot.com/contacts/${hubspotPortalId}/record/0-3/${id}/` : "");
-                          if (!href) {
-                            return (
-                              <span style={{ fontWeight: 600 }}>
-                                {String(r.dealname || r.id)}
-                              </span>
-                            );
-                          }
-                          return (
-                            <a
-                              href={href}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 3, fontWeight: 650 }}
-                              title="Open in HubSpot"
-                            >
-                              {String(r.dealname || r.id)}
-                            </a>
-                          );
-                        })()}
-                      </td>
-                      <td>
-                        {(() => {
-                          const pid = String(r.pipeline ?? "");
-                          const p = (pipelines || []).find((x: any) => String(x?.id ?? "") === pid) ?? null;
-                          const label = p?.label ? String(p.label) : (pid || "—");
-                          return (
-                            <div style={{ display: "grid", gap: 2 }}>
-                              <div style={{ fontSize: 13, opacity: 0.92, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {label}
-                              </div>
-                              {pid ? <div className="mono" style={{ fontSize: 11, opacity: 0.55 }}>{pid}</div> : null}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="mono">{r.createdate ? String(r.createdate).slice(0, 10) : "—"}</td>
-                      <td className="mono">{r.lastmodified ? String(r.lastmodified).slice(0, 10) : "—"}</td>
-                      <td className="mono">{String(r.dealstage_label ?? r.dealstage_id ?? "—")}</td>
-                      <td>{String(r.channel ?? "—")}</td>
-                      <td>{String(r.hypothesis_title ?? (r.hypothesis_key === "__unassigned__" ? "Unassigned" : r.hypothesis_key) ?? "—")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {rows.length > 500 ? <div className="muted2" style={{ marginTop: 8, fontSize: 12 }}>Showing first 500 deals.</div> : null}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <main>
       <AppTopbar
@@ -3539,7 +3017,6 @@ export default function HomePage() {
                               setSelectedPipelineIds(next);
                               setSelectedStageIds([]);
                             }}
-                            onDone={() => loadStock()}
                             disabled={!pipelines.length}
                             height={220}
                           />
@@ -3566,7 +3043,6 @@ export default function HomePage() {
                             })()}
                             selected={selectedStageIds}
                             onChange={(next) => setSelectedStageIds(next)}
-                            onDone={() => loadStock()}
                             disabled={!pipelines.length}
                             height={220}
                           />
