@@ -3796,7 +3796,6 @@ export default function HomePage() {
                             </div>
                           );
                         })()}
-                        <MetricTable metricKey="new_deals" />
                       </>
                     }
                   />
