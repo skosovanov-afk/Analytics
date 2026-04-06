@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Snapshot = {
     period_start: string;
@@ -10,7 +10,25 @@ type Snapshot = {
 };
 
 export function ProgressChart({ snapshots }: { snapshots: Snapshot[] }) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [canvasWidth, setCanvasWidth] = useState(900);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const w = Math.round(entry.contentRect.width);
+                if (w > 0) setCanvasWidth(w);
+            }
+        });
+        observer.observe(container);
+        // Set initial width
+        const w = container.clientWidth;
+        if (w > 0) setCanvasWidth(w);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -130,14 +148,16 @@ export function ProgressChart({ snapshots }: { snapshots: Snapshot[] }) {
             ctx.arc(xPos(i), yPosDeals(val), 4, 0, Math.PI * 2);
             ctx.fill();
         });
-    }, [snapshots]);
+    }, [snapshots, canvasWidth]);
 
     return (
-        <canvas
-            ref={canvasRef}
-            width={900}
-            height={320}
-            style={{ width: "100%", height: "auto", maxHeight: 320 }}
-        />
+        <div ref={containerRef} style={{ width: "100%" }}>
+            <canvas
+                ref={canvasRef}
+                width={canvasWidth}
+                height={320}
+                style={{ width: "100%", height: "auto", maxHeight: 320 }}
+            />
+        </div>
     );
 }

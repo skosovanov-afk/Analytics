@@ -23,6 +23,8 @@ alter table public.shared_api_tokens
 -- Enable RLS
 alter table public.shared_api_tokens enable row level security;
 
+-- Write policies intentionally omitted: token management is admin-only via service role key.
+
 -- RLS Policy: Only authorized users can read tokens
 -- (founders, sales, admin teams)
 drop policy if exists "Allow read for authorized users" on public.shared_api_tokens;

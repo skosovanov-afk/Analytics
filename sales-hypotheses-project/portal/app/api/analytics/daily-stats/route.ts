@@ -7,8 +7,31 @@ import { createClient } from "@supabase/supabase-js";
 // to ensure we can read all analytics, OR use the user's session if RLS is set up.
 // Given previous patterns, we check for a token.
 
+type SupabaseUserResponse = { email?: string | null };
+
+async function getSupabaseUserFromAuthHeader(authHeader: string | null) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+    if (!authHeader?.startsWith("Bearer ")) return null;
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "GET",
+        headers: { apikey: supabaseAnonKey, Authorization: authHeader }
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as SupabaseUserResponse;
+}
+
 export async function POST(req: Request) {
     try {
+        const authHeader = req.headers.get("authorization");
+        const user = await getSupabaseUserFromAuthHeader(authHeader);
+        if (!user?.email) return NextResponse.json({ ok: false, error: "Not authorized" }, { status: 401 });
+        const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
+        const email = String(user.email || "").toLowerCase();
+        if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+
         const json = await req.json();
         const { hypothesisId, days = 30, tal_list_id } = json ?? {};
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
 import { isoDate, startOfWeekISO } from "../../lib/utils";
 import { AppTopbar } from "../../components/AppTopbar";
+import { getSupabase } from "../../lib/supabase";
 
 type OwnedRow = { hypothesis_id: string; channel_id: string };
 type OwnedMetricRow = { hypothesis_id: string; channel_id: string; metric_id: string };
@@ -14,12 +15,7 @@ type HypRow = { id: string; title: string; status: string | null; updated_at: st
 type RecentCall = { id: string; title: string | null; occurred_at: string | null; owner_email: string | null };
 
 export default function SubmitWeeklyReportPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -122,12 +118,12 @@ export default function SubmitWeeklyReportPage() {
   async function loadRecentCalls(email: string) {
     if (!supabase) return;
     const since = new Date();
-    since.setDate(since.getDate() - 7);
+    since.setDate(since.getDate() - 6);
     const sinceIso = since.toISOString();
 
     const partsRes = await supabase
       .from("call_participants")
-      .select("call_id,calls:call_id(id,title,occurred_at,owner_email)")
+      .select("call_id,calls:call_id!inner(id,title,occurred_at,owner_email)")
       .eq("email", email)
       .gte("calls.occurred_at", sinceIso)
       .limit(200);
@@ -382,7 +378,7 @@ export default function SubmitWeeklyReportPage() {
 
       <div className="page" style={{ marginTop: 12 }}>
         <div className="btnRow" style={{ justifyContent: "flex-end" }}>
-          <a className="btn" href="/hypotheses">Back to hypotheses</a>
+          <Link className="btn" href="/hypotheses">Back to hypotheses</Link>
           <button className="btn" onClick={() => setStep((s) => (s === 0 ? 0 : ((s - 1) as any)))} disabled={step === 0}>
             Back
           </button>
@@ -700,5 +696,3 @@ export default function SubmitWeeklyReportPage() {
     </main>
   );
 }
-
-

@@ -91,8 +91,8 @@ export function ActivityLines({
                                     const y = yFor(t);
                                     return (
                                         <g key={i}>
-                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
-                                            <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="11" fill="rgba(255,255,255,0.55)">
+                                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--chartGrid)" strokeWidth={1} />
+                                            <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="11" fill="var(--chartAxis)">
                                                 {Math.round(t)}
                                             </text>
                                         </g>
@@ -105,7 +105,7 @@ export function ActivityLines({
                                     if (i % step !== 0 && i !== weeks.length - 1) return null;
                                     const x = xFor(i);
                                     return (
-                                        <text key={wk + i} x={x} y={h - 8} textAnchor="middle" fontSize="11" fill="rgba(255,255,255,0.45)">
+                                        <text key={wk + i} x={x} y={h - 8} textAnchor="middle" fontSize="11" fill="var(--chartAxis)">
                                             {String(wk).length >= 10 ? String(wk).slice(5) : String(wk)}
                                         </text>
                                     );
@@ -195,40 +195,33 @@ export function ActivityLines({
 
                             {hover ? (
                                 <div
-                                    className="card"
+                                    className="chartTooltip"
                                     style={{
-                                        position: "absolute",
                                         left: tipPos.left,
                                         top: tipPos.top,
-                                        padding: 10,
-                                        width: 260,
-                                        background: "rgba(10,12,18,0.92)",
-                                        border: "1px solid rgba(255,255,255,0.10)",
-                                        borderRadius: 12,
-                                        pointerEvents: "none",
                                         zIndex: 10
                                     }}
                                     ref={tipRef}
                                 >
                                     <div className="mono" style={{ fontSize: 12, opacity: 0.85 }}>{hoverLabel}</div>
-                                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                                    <div className="chartTooltipRows">
                                         {hoverBreakdown.map((x) => (
-                                            <div key={x.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <div key={x.key} className="chartTooltipRow">
                                                 <span style={{ width: 10, height: 10, borderRadius: 2, background: x.color, display: "inline-block" }} />
-                                                <span style={{ flex: 1, fontSize: 12, opacity: 0.9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                <span className="chartTooltipLabel" style={{ opacity: 0.9 }}>
                                                     {x.label}
                                                 </span>
-                                                <span className="mono" style={{ fontSize: 12 }}>{x.v}</span>
+                                                <span className="mono chartTooltipValue">{x.v}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             ) : null}
                         </div>
-                        <div className="btnRow" style={{ flexWrap: "wrap", gap: 10, justifyContent: "flex-start", marginTop: 10 }}>
+                        <div className="chartLegend">
                             {series.slice(0, 12).map((s) => (
-                                <span key={s.key} className="tag" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                                    <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: "inline-block" }} />
+                                <span key={s.key} className="chartLegendItem">
+                                    <span className="chartLegendSwatch" style={{ width: 10, height: 10, background: s.color }} />
                                     <span>{s.label}</span>
                                 </span>
                             ))}

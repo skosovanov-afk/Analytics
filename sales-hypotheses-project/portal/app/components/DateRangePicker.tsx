@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +17,7 @@ export function DateRangePicker({
   onChange: (next: { since: string; until: string }, meta?: { period?: "day" | "week" | "month" | "quarter" | "year" }) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const btnRef = useRef<any>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
   const [periodHint, setPeriodHint] = useState<null | "day" | "week" | "month" | "quarter" | "year">(null);
   const [quickQuarter, setQuickQuarter] = useState<string>("");
@@ -258,7 +257,7 @@ export function DateRangePicker({
                               <div className="calGrid">
                                 {cells.map((c, idx) => {
                                   if (c.off) return <div key={idx} className="calCell calCellOff" />;
-                                  const disabled = (availableMin && c.ymd < availableMin) || (availableMax && c.ymd > availableMax);
+                                  const disabled = !!(availableMin && c.ymd < availableMin) || !!(availableMax && c.ymd > availableMax);
                                   const isStart = c.ymd === draft.since;
                                   const isEnd = c.ymd === draft.until;
                                   const isIn = inRange(c.ymd, draft.since, draft.until);
@@ -349,7 +348,7 @@ export function DateRangePicker({
                             const a = since <= until ? since : until;
                             const b = since <= until ? until : since;
                             const days = Math.max(1, Math.round((parseMs(b) - parseMs(a)) / 86400000) + 1);
-                            const suggested: any = days <= 120 ? "day" : days <= 540 ? "week" : days <= 900 ? "month" : "quarter";
+                            const suggested: "day" | "week" | "month" | "quarter" = days <= 120 ? "day" : days <= 540 ? "week" : days <= 900 ? "month" : "quarter";
                             onChange({ since: a, until: b }, { period: periodHint || suggested });
                             setOpen(false);
                           }}

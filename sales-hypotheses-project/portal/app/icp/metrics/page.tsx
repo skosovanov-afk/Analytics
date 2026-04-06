@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../../components/AppTopbar";
+import { getSupabase } from "../../lib/supabase";
 
 type MetricRow = {
   id: string;
@@ -25,12 +25,7 @@ function slugify(x: string) {
 }
 
 export default function MetricsPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<MetricRow[]>([]);
@@ -206,7 +201,7 @@ export default function MetricsPage() {
               <div className="cardDesc">Editable. Disable instead of delete if unsure.</div>
             </div>
           </div>
-          <div className="cardBody">
+          <div className="cardBody" style={{ overflowX: "auto" }}>
             <table className="table">
               <thead>
                 <tr>

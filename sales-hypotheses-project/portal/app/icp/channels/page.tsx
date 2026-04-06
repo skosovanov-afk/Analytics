@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../../components/AppTopbar";
+import { getSupabase } from "../../lib/supabase";
 
 type ChannelRow = {
   id: string;
@@ -23,12 +23,7 @@ function slugify(x: string) {
 }
 
 export default function ChannelsPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<ChannelRow[]>([]);
@@ -36,17 +31,20 @@ export default function ChannelsPage() {
 
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
-  const [newOrder, setNewOrder] = useState<number>(0);
 
   async function load() {
     if (!supabase) return;
     setStatus("Loading...");
-    const sess = await supabase.auth.getSession();
-    if (!sess.data.session) return setStatus("Not signed in. Go back to /.");
-    const res = await supabase.from("sales_channels").select("*").order("is_active", { ascending: false }).order("sort_order", { ascending: true }).order("name", { ascending: true });
-    if (res.error) return setStatus(`channels error: ${res.error.message}`);
-    setRows((res.data ?? []) as any);
-    setStatus("");
+    try {
+      const sess = await supabase.auth.getSession();
+      if (!sess.data.session) return setStatus("Not signed in. Go back to /.");
+      const res = await supabase.from("sales_channels").select("*").order("is_active", { ascending: false }).order("sort_order", { ascending: true }).order("name", { ascending: true });
+      if (res.error) return setStatus(`channels error: ${res.error.message}`);
+      setRows((res.data ?? []) as any);
+      setStatus("");
+    } catch (err) {
+      setStatus(`Error: ${err instanceof Error ? err.message : "Failed to load"}`);
+    }
   }
 
   useEffect(() => {
@@ -66,11 +64,10 @@ export default function ChannelsPage() {
     if (!name) return setStatus("Name is required");
     if (!slug) return setStatus("Slug is required");
     setStatus("Saving...");
-    const res = await supabase.from("sales_channels").insert({ name, slug, sort_order: Number(newOrder) || 0, is_active: true });
+    const res = await supabase.from("sales_channels").insert({ name, slug, sort_order: 0, is_active: true });
     if (res.error) return setStatus(`insert error: ${res.error.message}`);
     setNewName("");
     setNewSlug("");
-    setNewOrder(0);
     await load();
     setStatus("Saved.");
   }
@@ -89,7 +86,7 @@ export default function ChannelsPage() {
    * Commit a single draft field on blur.
    * Avoids saving on every keystroke which makes the table jump.
    */
-  async function commitDraftField(id: string, field: "name" | "slug" | "sort_order") {
+  async function commitDraftField(id: string, field: "name" | "slug") {
     const d = draftById[id] ?? null;
     if (!d) return;
     const row = rows.find((r) => r.id === id) ?? null;
@@ -124,19 +121,6 @@ export default function ChannelsPage() {
       });
       return;
     }
-
-    const n = Number((d as any).sort_order ?? row.sort_order ?? 0);
-    const v = Number.isFinite(n) ? n : 0;
-    if (v === Number(row.sort_order ?? 0)) return;
-    await updateField(id, { sort_order: v } as any);
-    setDraftById((prev) => {
-      const next = { ...(prev ?? {}) };
-      const cur = { ...(next[id] ?? {}) };
-      delete (cur as any).sort_order;
-      next[id] = cur;
-      if (!Object.keys(next[id] ?? {}).length) delete next[id];
-      return next;
-    });
   }
 
   async function remove(id: string) {
@@ -167,17 +151,13 @@ export default function ChannelsPage() {
           <div className="cardBody">
             {status ? <div className="notice" style={{ marginBottom: 12 }}>{status}</div> : null}
             <div className="grid">
-              <div style={{ gridColumn: "span 5" }}>
+              <div style={{ gridColumn: "span 6" }}>
                 <label className="muted" style={{ fontSize: 13 }}>Name *</label>
                 <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Outbound email" />
               </div>
-              <div style={{ gridColumn: "span 4" }}>
+              <div style={{ gridColumn: "span 6" }}>
                 <label className="muted" style={{ fontSize: 13 }}>Slug *</label>
                 <input className="input" value={newSlug} onChange={(e) => setNewSlug(e.target.value)} placeholder="OutboundEmail" />
-              </div>
-              <div style={{ gridColumn: "span 3" }}>
-                <label className="muted" style={{ fontSize: 13 }}>Sort order</label>
-                <input className="input" type="number" value={newOrder} onChange={(e) => setNewOrder(Number(e.target.value || 0))} />
               </div>
             </div>
             <div className="btnRow" style={{ marginTop: 10 }}>
@@ -200,7 +180,6 @@ export default function ChannelsPage() {
                   <th style={{ width: 90 }}>Active</th>
                   <th>Name</th>
                   <th>Slug</th>
-                  <th style={{ width: 120 }}>Sort</th>
                   <th style={{ width: 120 }}></th>
                 </tr>
               </thead>
@@ -227,22 +206,13 @@ export default function ChannelsPage() {
                       />
                     </td>
                     <td>
-                      <input
-                        className="input"
-                        type="number"
-                        value={Number(draftById[r.id]?.sort_order ?? r.sort_order ?? 0)}
-                        onChange={(e) => setDraftById((prev) => ({ ...(prev ?? {}), [r.id]: { ...(prev?.[r.id] ?? {}), sort_order: Number(e.target.value || 0) } }))}
-                        onBlur={() => commitDraftField(r.id, "sort_order")}
-                      />
-                    </td>
-                    <td>
                       <button className="btn" onClick={() => remove(r.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}
                 {!rows.length ? (
                   <tr>
-                    <td colSpan={5} className="muted2">No channels yet.</td>
+                    <td colSpan={4} className="muted2">No channels yet.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -253,5 +223,4 @@ export default function ChannelsPage() {
     </main>
   );
 }
-
 

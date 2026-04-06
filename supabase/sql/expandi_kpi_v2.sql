@@ -163,14 +163,16 @@ msg_by_name as (
   group by li_account_id, campaign_name
 ),
 manual_meetings as (
-  -- Booked/held meetings from manual_stats for LinkedIn channel
+  -- Booked/held meetings from manual_stats for LinkedIn channel.
+  -- Uses coalesce(campaign_name, account_name) because the CSV backfill stores
+  -- the campaign identifier in account_name with campaign_name = null.
   select
-    campaign_name,
+    coalesce(campaign_name, account_name) as campaign_name,
     sum(case when metric_name = 'booked_meetings' then value else 0 end) as booked_meetings,
     sum(case when metric_name = 'held_meetings'   then value else 0 end) as held_meetings
   from public.manual_stats
   where channel = 'linkedin'
-  group by campaign_name
+  group by coalesce(campaign_name, account_name)
 )
 select
   sn.li_account_id,

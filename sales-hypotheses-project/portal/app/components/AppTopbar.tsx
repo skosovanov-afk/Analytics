@@ -3,20 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "../lib/supabase";
 
 const NAV = [
-  { href: "/", label: "Main dashboard" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/hypotheses", label: "Hypotheses" },
-  { href: "/dashboard", label: "Advanced dashboard" },
   { href: "/icp", label: "Library" },
   { href: "/expandi", label: "LinkedIn" },
   { href: "/smartlead", label: "Email" },
   { href: "/app", label: "App" },
   { href: "/telegram", label: "Telegram" },
+  { href: "/replies", label: "Replies" },
   { href: "/manual-stats", label: "Manual" },
-  { href: "/checkins/new", label: "Submit report" },
 ];
+
+function isNavActive(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === "/" || pathname === "/dashboard";
+  if (href === "/dashboard/advanced") return pathname === "/dashboard/advanced";
+  if (href === "/icp") return pathname === "/icp" || pathname.startsWith("/icp/") || pathname === "/tals" || pathname.startsWith("/tals/");
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function AppTopbar(props: {
   title: string;
@@ -26,14 +32,9 @@ export function AppTopbar(props: {
 }) {
   const pathname = usePathname();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "@oversecured.com";
+  const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
 
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
 
@@ -93,7 +94,7 @@ export function AppTopbar(props: {
   useEffect(() => {
     const id = setTimeout(measurePill, 16); // wait one frame for DOM layout
     return () => clearTimeout(id);
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, sessionEmail, props.showSync]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.addEventListener("resize", measurePill);
@@ -103,8 +104,8 @@ export function AppTopbar(props: {
   // ──────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="topbar">
-      <div className="brand">
+    <div className="topbar" style={{ display: "flex", alignItems: "center", gap: 24 }}>
+      <div className="brand" style={{ flexShrink: 0 }}>
         <div className="brandMark" />
         <div>
           <div className="brandTitle">{props.title}</div>
@@ -118,69 +119,54 @@ export function AppTopbar(props: {
         </div>
       </div>
 
-      <div className="btnRow">
+      <div ref={navRef} style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+        {pillVisible && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: pill.left,
+              top: pill.top,
+              width: pill.width,
+              height: pill.height,
+              background: "var(--pill-bg, #ffffff)",
+              transition: pillTransition,
+              zIndex: 0,
+              pointerEvents: "none",
+            }}
+          />
+        )}
+
+        {NAV.map(({ href, label }) => {
+          const isActive = isNavActive(pathname, href);
+          const useFallback = isActive && !pillVisible;
+          return (
+            <Link
+              key={href}
+              href={href}
+              data-active={isActive ? "true" : undefined}
+              className={`btn${useFallback ? " btnPrimary" : ""}`}
+              style={{
+                position: "relative",
+                zIndex: 1,
+                transition: "color 100ms ease, background 100ms ease, border-color 100ms ease",
+                ...(isActive && pillVisible
+                  ? { color: "var(--pill-text, #111827)", fontWeight: 600, borderColor: "transparent", background: "transparent" }
+                  : !isActive
+                  ? { borderColor: "transparent", background: "transparent" }
+                  : {}),
+              }}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         {props.showSync && (
           <button className="btn btnPrimary" onClick={props.onSync}>Sync</button>
         )}
-
-        {/* Pill nav — sliding white indicator follows active link */}
-        <div ref={navRef} style={{ position: "relative", display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {pillVisible && (
-            <span
-              aria-hidden
-              style={{
-                position: "absolute",
-                left: pill.left,
-                top: pill.top,
-                width: pill.width,
-                height: pill.height,
-                background: "#ffffff",
-                transition: pillTransition,
-                zIndex: 0,
-                pointerEvents: "none",
-              }}
-            />
-          )}
-
-          {NAV.map(({ href, label }) => {
-            const isActive = pathname === href;
-            // When pill hasn't positioned yet, show active link as btnPrimary immediately
-            // so there's never a frame with no visual highlight. Once pill is visible,
-            // hand off: button goes transparent, pill provides the white background.
-            const useFallback = isActive && !pillVisible;
-            return (
-              <Link
-                key={href}
-                href={href}
-                scroll={false}
-                data-active={isActive ? "true" : undefined}
-                className={`btn${useFallback ? " btnPrimary" : ""}`}
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  transition: "color 100ms ease, background 100ms ease, border-color 100ms ease",
-                  ...(isActive && pillVisible
-                    ? { color: "#0a0a0a", fontWeight: 500, borderColor: "transparent", background: "transparent" }
-                    : !isActive
-                    ? { borderColor: "transparent", background: "transparent" }
-                    : {}),
-                }}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </div>
-
-        <Link
-          href="/hypotheses/new"
-          scroll={false}
-          className="btn btnPrimary"
-          style={{ position: "relative", zIndex: 1 }}
-        >
-          New hypothesis
-        </Link>
-
         {sessionEmail && (
           <button className="btn btnGhost" onClick={signOut}>Sign out</button>
         )}

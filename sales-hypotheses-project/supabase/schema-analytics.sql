@@ -514,3 +514,25 @@ begin
     limit v_limit;
 end;
 $$;
+
+-- RLS
+alter table public.sales_analytics_activities enable row level security;
+create policy "Authenticated users can read analytics activities"
+  on public.sales_analytics_activities for select
+  to authenticated using (true);
+
+alter table public.sales_analytics_activity_deals enable row level security;
+create policy "Authenticated users can read analytics activity deals"
+  on public.sales_analytics_activity_deals for select
+  to authenticated using (true);
+
+-- FK constraints
+alter table public.sales_analytics_activity_deals
+  add constraint sales_analytics_activity_deals_activity_id_fk
+  foreign key (activity_id) references public.sales_analytics_activities(id)
+  on delete cascade;
+
+alter table public.sales_analytics_activities
+  add constraint sales_analytics_activities_hypothesis_id_fk
+  foreign key (hypothesis_id) references public.sales_hypotheses(id)
+  on delete set null;

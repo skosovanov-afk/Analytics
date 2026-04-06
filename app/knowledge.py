@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sqlalchemy import select
@@ -87,15 +88,20 @@ async def enrich_and_write_hypothesis_card(repo_root: Path, db: AsyncSession, h:
         if getattr(h, "vp_point_id", None):
             vp = await db.get(VPPoint, int(h.vp_point_id))
             vp_name = vp.name if vp else None
+    except Exception as exc:
+        logging.warning("Failed to look up VPPoint: %s", exc)
+    try:
         if getattr(h, "icp_id", None):
             icp = await db.get(ICP, int(h.icp_id))
             icp_name = icp.name if icp else None
+    except Exception as exc:
+        logging.warning("Failed to look up ICP: %s", exc)
+    try:
         if getattr(h, "sub_vertical_id", None):
             sub = await db.get(SubVertical, int(h.sub_vertical_id))
             sub_name = sub.name if sub else None
-    except Exception:
-        # keep names empty if lookup fails
-        pass
+    except Exception as exc:
+        logging.warning("Failed to look up SubVertical: %s", exc)
 
     calls = (await db.execute(select(Call).where(Call.hypothesis_id == h.id))).scalars().all()
     total = len(calls)

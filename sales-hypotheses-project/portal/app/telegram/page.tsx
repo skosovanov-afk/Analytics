@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
 import { FadeIn } from "../components/FadeIn";
+import { SpotlightCard } from "../components/SpotlightCard";
+import { getSupabase } from "../lib/supabase";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Period = "7d" | "30d" | "90d" | "all";
@@ -54,14 +55,10 @@ function SortIcon({ col, sortKey, sortDir }: { col: string; sortKey: string; sor
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TelegramAnalyticsPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(
-    () => (supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null),
-    [supabaseUrl, supabaseAnonKey]
-  );
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ManualStatRow[]>([]);
   const [period, setPeriod] = useState<Period>("all");
   const [dateRange, setDateRange] = useState<{ since: string; until: string }>({ since: "", until: "" });
@@ -85,10 +82,12 @@ export default function TelegramAnalyticsPage() {
 
   async function load() {
     if (!supabase) return;
+    setLoading(true);
     setStatus("Loading…");
     const sess = await supabase.auth.getSession();
     if (!sess.data.session) {
       setStatus("Not signed in. Go back to / and sign in.");
+      setLoading(false);
       return;
     }
     try {
@@ -110,6 +109,8 @@ export default function TelegramAnalyticsPage() {
       setStatus("");
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : "Failed to load"}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -199,7 +200,7 @@ export default function TelegramAnalyticsPage() {
               <div className="cardDesc">{rangeLabel} · full funnel by campaign</div>
             </div>
             <div className="btnRow">
-              <button className="btn" onClick={load} title="Refresh data">↻</button>
+              <button className="btn" onClick={load} disabled={loading} title="Refresh data">↻</button>
             </div>
           </div>
           <div className="cardBody">
@@ -209,6 +210,7 @@ export default function TelegramAnalyticsPage() {
                   key={p}
                   className={`btn${period === p ? " btnPrimary" : ""}`}
                   onClick={() => setPeriod(p)}
+                  disabled={loading}
                 >
                   {p === "all" ? "All" : p.toUpperCase()}
                 </button>
@@ -219,7 +221,7 @@ export default function TelegramAnalyticsPage() {
 
         {/* ── KPI cards ─────────────────────────────────────────────────────── */}
         <FadeIn delay={60} style={{ gridColumn: "span 12" }}>
-          <div className="kpiRow" style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
+          <div className="kpiRow kpiRowSeven">
             {[
               { label: "Total touches", val: totals.total_touches, isNum: true, sub: null },
               { label: "Replies", val: totals.replies, isNum: true, sub: `${pctStr(totals.cr_reply)} of touches` },
@@ -229,7 +231,7 @@ export default function TelegramAnalyticsPage() {
               { label: "CR → Booked", val: pctStr(totals.cr_booked), isNum: false, sub: "booked / replies" },
               { label: "CR → Held", val: pctStr(totals.cr_held), isNum: false, sub: "held / booked" },
             ].map((kpi) => (
-              <div key={kpi.label} className="card kpiCard" style={{ gridColumn: "auto" }}>
+              <SpotlightCard key={kpi.label} className="card kpiCard" style={{ gridColumn: "auto" }}>
                 <div className="cardBody">
                   <div className="muted2" style={{ fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                     {kpi.label}
@@ -243,7 +245,7 @@ export default function TelegramAnalyticsPage() {
                     <div className="muted2" style={{ fontSize: 11, marginTop: 5 }}>{kpi.sub}</div>
                   )}
                 </div>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
         </FadeIn>
@@ -293,7 +295,7 @@ export default function TelegramAnalyticsPage() {
                     </tr>
                   ))}
                   {!campaignRows.length && (
-                    <tr><td colSpan={8} className="muted2">No data.</td></tr>
+                    <tr><td colSpan={8} className="muted2">{loading ? "Loading…" : "No data for selected period."}</td></tr>
                   )}
                 </tbody>
               </table>

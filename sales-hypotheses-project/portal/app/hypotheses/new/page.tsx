@@ -1,17 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
 import { CHANNEL_OPTIONS, parseCjm, type CjmJson } from "../_lib/hypothesisJson";
 import { AppTopbar } from "../../components/AppTopbar";
+import { getSupabase } from "../../lib/supabase";
 
 export default function NewHypothesisPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -90,7 +86,7 @@ export default function NewHypothesisPage() {
       return;
     }
     setStatus("");
-    setWizardStep((s) => Math.min(5, s + 1));
+    setWizardStep((s) => Math.min(4, s + 1));
   }
 
   function prevStep() {
@@ -260,11 +256,11 @@ export default function NewHypothesisPage() {
 
   return (
     <main>
-      <AppTopbar title="New hypothesis" subtitle="Create a hypothesis" />
+      <AppTopbar title="New workspace" subtitle="Create a workspace container" />
 
       <div className="page" style={{ marginTop: 12 }}>
         <div className="btnRow" style={{ justifyContent: "flex-end" }}>
-          <a className="btn" href="/hypotheses">Back to hypotheses</a>
+          <Link className="btn" href="/hypotheses">Back to hypotheses</Link>
           {createMode === "form" ? <button className="btn btnPrimary" onClick={create}>Create</button> : null}
         </div>
       </div>
@@ -272,9 +268,9 @@ export default function NewHypothesisPage() {
       <div className="page grid">
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="cardHeader">
-            <div>
-              <div className="cardTitle">Create hypothesis</div>
-              <div className="cardDesc">Two modes: guided questionnaire (recommended) or manual form.</div>
+              <div>
+              <div className="cardTitle">Create workspace</div>
+              <div className="cardDesc">Creates a top-level container. Row-level hypotheses are managed from the sheet.</div>
             </div>
             <div className="btnRow">
               <button
@@ -304,7 +300,7 @@ export default function NewHypothesisPage() {
               <div className="grid">
                 <div style={{ gridColumn: "span 12" }}>
                   <div className="muted2" style={{ fontSize: 12, marginBottom: 10 }}>
-                    Step <span className="mono">{wizardStep + 1}/6</span>
+                    Step <span className="mono">{wizardStep + 1}/5</span>
                   </div>
                 </div>
 
@@ -393,15 +389,15 @@ export default function NewHypothesisPage() {
                 ) : null}
 
 
-                {wizardStep === 3 ? (
+                {wizardStep === 2 ? (
                   <div style={{ gridColumn: "span 12" }} className="card">
                     <div className="cardBody">
-                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>4) Who are we targeting?</div>
+                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>3) Who are we targeting?</div>
                       <div className="muted2" style={{ fontSize: 12, marginBottom: 10 }}>
                         Select Roles + Company Profiles (VP is filled later per intersection).
                       </div>
                       <div className="btnRow" style={{ justifyContent: "flex-start", marginBottom: 10 }}>
-                        <a className="btn" href="/icp" target="_blank" rel="noreferrer">Open Library</a>
+                        <Link className="btn" href="/icp" target="_blank" rel="noreferrer">Open Library</Link>
                       </div>
 
                       <div className="grid" style={{ gridTemplateColumns: "repeat(12,1fr)", gap: 10, alignItems: "end" }}>
@@ -508,10 +504,10 @@ export default function NewHypothesisPage() {
                   </div>
                 ) : null}
 
-                {wizardStep === 4 ? (
+                {wizardStep === 3 ? (
                   <div style={{ gridColumn: "span 12" }} className="card">
                     <div className="cardBody">
-                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>5) Channels + metrics</div>
+                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>4) Channels + metrics</div>
                       <div className="muted2" style={{ fontSize: 12, marginBottom: 10 }}>
                         Choose channels you will run, and which metrics you want tracked on the hypothesis.
                       </div>
@@ -616,10 +612,10 @@ export default function NewHypothesisPage() {
                   </div>
                 ) : null}
 
-                {wizardStep === 5 ? (
+                {wizardStep === 4 ? (
                   <div style={{ gridColumn: "span 12" }} className="card">
                     <div className="cardBody">
-                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>6) Review</div>
+                      <div className="cardTitle" style={{ fontSize: 14, marginBottom: 6 }}>5) Review</div>
                       <table className="table">
                         <tbody>
                           <tr><td><b>Title</b></td><td>{title || "—"}</td></tr>
@@ -678,7 +674,7 @@ export default function NewHypothesisPage() {
                 <div style={{ gridColumn: "span 12" }}>
                   <div className="btnRow" style={{ justifyContent: "space-between" }}>
                     <button className="btn" onClick={prevStep} disabled={wizardStep === 0}>Back</button>
-                    <button className="btn btnPrimary" onClick={nextStep} disabled={wizardStep >= 5}>Next</button>
+                    <button className="btn btnPrimary" onClick={nextStep} disabled={wizardStep >= 4}>Next</button>
                   </div>
                 </div>
               </div>
@@ -803,8 +799,8 @@ export default function NewHypothesisPage() {
               <div className="cardDesc">Pick Roles + Company Profiles for this hypothesis (VP is filled per intersection inside the hypothesis).</div>
             </div>
             <div className="btnRow">
-              <a className="btn" href="/icp">Library</a>
-              <a className="btn" href="/icp/matrix">VP matrix</a>
+              <Link className="btn" href="/icp">Library</Link>
+              <Link className="btn" href="/icp/matrix">VP matrix</Link>
             </div>
           </div>
           <div className="cardBody">
@@ -1060,5 +1056,3 @@ export default function NewHypothesisPage() {
     </main>
   );
 }
-
-

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { smartleadFetch, pickArrayFromSmartleadListResponse, smartleadListCampaignsBestEffort, parseCsvEnv } from "@/app/lib/smartlead";
-import { getSupabaseUserFromAuthHeader } from "@/app/lib/supabase-server";
+import { getSupabaseUserFromAuthHeader, postgrestHeadersFor, postgrestJson } from "@/app/lib/supabase-server";
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -173,16 +173,61 @@ async function smartleadGetCampaignStatsProbe(id: number) {
   return { ok: false as const, tried };
 }
 
-export async function POST(req: Request) {
+async function postgrestGetAll(headers: ReturnType<typeof postgrestHeadersFor>, pathBase: string, pageSize = 1000, maxRows = 10000) {
+  const out: any[] = [];
+  for (let offset = 0; offset < maxRows; offset += pageSize) {
+    const rows = await postgrestJson(
+      headers,
+      "GET",
+      `${pathBase}${pathBase.includes("?") ? "&" : "?"}limit=${pageSize}&offset=${offset}`
+    );
+    const batch = Array.isArray(rows) ? rows : [];
+    out.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return out;
+}
+
+async function loadSmartleadCampaignsFromDb(authHeader: string) {
+  const headers = postgrestHeadersFor(authHeader, false);
+  const [leadRows, eventRows, statsRows] = await Promise.all([
+    postgrestGetAll(headers, "smartlead_leads?select=campaign_id,campaign_name&campaign_name=not.is.null&order=campaign_name.asc"),
+    postgrestGetAll(headers, "smartlead_events?select=campaign_id,campaign_name&campaign_name=not.is.null&order=campaign_name.asc"),
+    postgrestGetAll(headers, "smartlead_stats_daily?select=campaign_id,campaign_name&campaign_name=not.is.null&order=campaign_name.asc")
+  ]);
+
+  const byKey = new Map<string, { id: string; name: string }>();
+  for (const row of [...leadRows, ...eventRows, ...statsRows]) {
+    const name = String(row?.campaign_name ?? "").trim();
+    if (!name) continue;
+    const idNum = Number(row?.campaign_id);
+    const id = Number.isFinite(idNum) && idNum > 0 ? String(idNum) : name;
+    const key = Number.isFinite(idNum) && idNum > 0 ? `id:${id}` : `name:${name.toLowerCase()}`;
+    if (!byKey.has(key)) byKey.set(key, { id, name });
+  }
+
+  return Array.from(byKey.values())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      status: "known",
+      raw_status: "db_fallback_union",
+      stats: null,
+      raw: null
+    }));
+}
+
+async function handleRequest(req: Request) {
   try {
     const authHeader = req.headers.get("authorization");
     const user = await getSupabaseUserFromAuthHeader(authHeader);
     if (!user?.email) return jsonError(401, "Not authorized");
-    const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "@oversecured.com";
+    const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
     const email = String(user.email || "").toLowerCase();
     if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return jsonError(403, "Forbidden");
 
-    const payload = (await req.json().catch(() => ({}))) as {
+    const payload = (req.method === "POST" ? await req.json().catch(() => ({})) : {}) as {
       campaign_ids?: Array<string | number>;
       include_raw?: boolean;
       include_stats?: boolean;
@@ -201,13 +246,19 @@ export async function POST(req: Request) {
     const listOffset = Math.max(0, Number(payload?.offset ?? 0));
 
     let ids: number[] = [];
-    let source: "request" | "smartlead_api" | "env" = fromReq.length ? "request" : "env";
+    let source: "request" | "smartlead_api" | "smartlead_db" | "env" = fromReq.length ? "request" : "env";
+    let dbFallbackError: string | null = null;
     if (fromReq.length) ids = fromReq.slice(0, 200);
     else {
-      // If env is not configured, auto-discover campaigns from SmartLead API.
-      const listed = listAll
-        ? await smartleadListAllCampaignsBestEffort(listLimit, 1000)
-        : await smartleadListCampaignsBestEffort({ limit: listLimit, offset: listOffset });
+      let listed: any[] = [];
+      try {
+        // If env is not configured, auto-discover campaigns from SmartLead API.
+        listed = listAll
+          ? await smartleadListAllCampaignsBestEffort(listLimit, 1000)
+          : await smartleadListCampaignsBestEffort({ limit: listLimit, offset: listOffset });
+      } catch (e: any) {
+        dbFallbackError = String(e?.message || e);
+      }
       const picked = listed
         .map((c: any) => Number(c?.id ?? c?.campaign_id ?? c?.campaignId))
         .filter((n) => Number.isFinite(n) && n > 0) as number[];
@@ -218,10 +269,21 @@ export async function POST(req: Request) {
         source = "env";
         ids = fromEnv.slice(0, 200);
       } else {
+        const dbCampaigns = await loadSmartleadCampaignsFromDb(authHeader ?? "");
+        if (dbCampaigns.length) {
+          return NextResponse.json({
+            ok: true,
+            campaigns: dbCampaigns,
+            failed: dbFallbackError ? [{ source: "smartlead_api", error: dbFallbackError }] : [],
+            source: "smartlead_db"
+          });
+        }
         return NextResponse.json({
           ok: true,
           skipped: true,
-          reason: "No SmartLead campaigns available (set SMARTLEAD_CAMPAIGN_IDS or ensure SmartLead API key can list campaigns)",
+          reason: dbFallbackError
+            ? `No SmartLead campaigns available from API or DB fallback: ${dbFallbackError}`
+            : "No SmartLead campaigns available (set SMARTLEAD_CAMPAIGN_IDS or ensure SmartLead API key can list campaigns)",
           campaigns: [],
           failed: [],
           source
@@ -276,4 +338,10 @@ export async function POST(req: Request) {
   }
 }
 
+export async function GET(req: Request) {
+  return handleRequest(req);
+}
 
+export async function POST(req: Request) {
+  return handleRequest(req);
+}

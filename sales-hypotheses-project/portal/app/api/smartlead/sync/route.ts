@@ -349,7 +349,7 @@ export async function POST(req: Request) {
     if (!secretOk) {
       const user = await getSupabaseUserFromAuthHeader(authHeader);
       if (!user?.email) return jsonError(401, "Not authorized");
-      const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "@oversecured.com";
+      const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
       const email = String(user.email || "").toLowerCase();
       if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return jsonError(403, "Forbidden");
     }

@@ -1,20 +1,29 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import Any
 
 from supabase import Client, create_client
 
 from app.settings import get_supabase_service_role_key, get_supabase_url
 
+_client: Client | None = None
 
-@lru_cache(maxsize=1)
+
 def get_supabase_client() -> Client:
-    url = get_supabase_url().strip()
-    key = get_supabase_service_role_key().strip()
-    if not url or not key:
-        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
-    return create_client(url, key)
+    global _client
+    if _client is None:
+        url = get_supabase_url().strip()
+        key = get_supabase_service_role_key().strip()
+        if not url or not key:
+            raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
+        _client = create_client(url, key)
+    return _client
+
+
+def reset_supabase_client() -> None:
+    """Call to force a fresh client on next access."""
+    global _client
+    _client = None
 
 
 def insert_row(table: str, record: dict[str, Any]) -> list[dict[str, Any]]:

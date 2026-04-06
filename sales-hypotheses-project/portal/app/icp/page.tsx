@@ -1,78 +1,118 @@
 "use client";
 
+import Link from "next/link";
 import { AppTopbar } from "../components/AppTopbar";
+
+const sections = [
+  {
+    label: "ICP Foundation",
+    desc: "Базовые строительные блоки — роли, профили компаний, каналы.",
+    items: [
+      {
+        title: "Roles",
+        desc: "Персоны, тайтлы и decision roles которые таргетируешь.",
+        href: "/icp/roles",
+        cta: "Manage roles",
+      },
+      {
+        title: "Company profiles",
+        desc: "Вертикали, суб-вертикали, размер, регион, тех-стек.",
+        href: "/icp/companies",
+        cta: "Manage profiles",
+      },
+      {
+        title: "Channels",
+        desc: "Каналы из которых собираются гипотезы.",
+        href: "/icp/channels",
+        cta: "Manage channels",
+      },
+    ],
+  },
+  {
+    label: "Strategy",
+    desc: "Что и кому говоришь — мессаджинг в разрезе ролей и профилей.",
+    items: [
+      {
+        title: "VP Library",
+        desc: "VP Point × Role × Company profile. Видишь где и как тестируется каждый angle.",
+        href: "/icp/matrix",
+        cta: "Open VP library",
+        wide: true,
+      },
+    ],
+  },
+  {
+    label: "Execution",
+    desc: "Операционная единица — списки компаний с привязанными кампаниями и аналитикой.",
+    items: [
+      {
+        title: "TAL",
+        desc: "Territory Account Lists — группируешь кампании Smartlead и Expandi по сегментам. Аналитика агрегируется по Email + LinkedIn в одном месте.",
+        href: "/tals",
+        cta: "Open TAL",
+        wide: true,
+      },
+    ],
+  },
+];
 
 export default function IcpIndexPage() {
   return (
     <main>
       <AppTopbar
-        title="Sales Library"
-        subtitle="Shared building blocks: roles, company profiles, VP matrix, channels."
+        title="Library"
+        subtitle="ICP foundation, messaging strategy, and execution tracking."
       />
 
-      <div className="page grid">
-        <div className="card" style={{ gridColumn: "span 6" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">Roles</div>
-              <div className="cardDesc">Personas / titles / decision role.</div>
+      <div className="icpSections">
+        {sections.map((section) => (
+          <div key={section.label}>
+            {/* Section header */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#666", marginBottom: 4 }}>
+                {section.label}
+              </div>
+              <div style={{ fontSize: 14, color: "#888" }}>{section.desc}</div>
             </div>
-          </div>
-          <div className="cardBody">
-            <a className="btn btnPrimary" href="/icp/roles">Manage roles</a>
-          </div>
-        </div>
 
-        <div className="card" style={{ gridColumn: "span 6" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">Company profiles</div>
-              <div className="cardDesc">Vertical + sub-vertical + size/region/tech.</div>
+            {/* Cards */}
+            <div className={section.items.length === 3 ? "icpSectionGrid icpSectionGridThree" : "icpSectionGrid"}>
+              {section.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div
+                    className="card"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: 20,
+                      padding: 24,
+                      cursor: "pointer",
+                      transition: "border-color 150ms ease",
+                      height: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{item.title}</div>
+                      <div style={{ fontSize: 13, color: "#888", lineHeight: 1.5 }}>{item.desc}</div>
+                    </div>
+                    <div>
+                      <span className="btn btnPrimary" style={{ fontSize: 13, padding: "6px 14px" }}>
+                        {item.cta}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
-          <div className="cardBody">
-            <a className="btn btnPrimary" href="/icp/companies">Manage company profiles</a>
-          </div>
-        </div>
-
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">VP Matrix</div>
-              <div className="cardDesc">VP is defined per intersection: Role × CompanyProfile (incl. sub-vertical).</div>
-            </div>
-          </div>
-          <div className="cardBody">
-            <a className="btn btnPrimary" href="/icp/matrix">Open VP matrix</a>
-          </div>
-        </div>
-
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">Channels</div>
-              <div className="cardDesc">Hypotheses select channels from this list. Weekly check-ins prompt per selected channel.</div>
-            </div>
-          </div>
-          <div className="cardBody">
-            <a className="btn btnPrimary" href="/icp/channels">Manage channels</a>
-          </div>
-        </div>
-
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="cardHeader">
-            <div>
-              <div className="cardTitle">Metrics</div>
-              <div className="cardDesc">Hypotheses select metrics from this list. Weekly check-ins collect values for selected metrics.</div>
-            </div>
-          </div>
-          <div className="cardBody">
-            <a className="btn btnPrimary" href="/icp/metrics">Manage metrics</a>
-          </div>
-        </div>
+        ))}
       </div>
     </main>
   );
 }
-
-

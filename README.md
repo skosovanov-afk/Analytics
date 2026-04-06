@@ -64,16 +64,35 @@ VP-матрица — это пересечение **трёх осей**:
 - SQLAlchemy 2.x (async) + aiosqlite
 - pytest + pytest-asyncio
 
-## Быстрый старт
+## Локальный запуск
+
+### Текущий UI
+
+Актуальный локальный интерфейс находится в:
+
+- `sales-hypotheses-project/portal`
+
+Запуск:
 
 ```bash
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+./tools/run-portal-dev.sh
 ```
 
-Откройте:
-- `http://127.0.0.1:8000/` — домашняя страница
+По умолчанию портал поднимается на:
 
+- `http://127.0.0.1:3000/`
 
+Если нужно запустить напрямую из worktree, используй:
+
+```bash
+cd sales-hypotheses-project/portal
+npm install
+npm run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+Но стандартный локальный запуск для этого репозитория теперь должен идти через `tools/run-portal-dev.sh`: он каждый раз пересобирает свежую runtime-копию из текущего `portal/` и не использует старые `/tmp/portal-run-*`.
+
+### Legacy FastAPI MVP
+
+Нижеописанный FastAPI MVP в текущем состоянии не является основной точкой входа для проекта.
+Команда `uvicorn app.main:app --reload` из старой версии README больше невалидна: файла `app/main.py` в репозитории нет.

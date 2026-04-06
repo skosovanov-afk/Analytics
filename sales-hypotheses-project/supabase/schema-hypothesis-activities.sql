@@ -4,6 +4,7 @@
 -- Usage: select * from sales_hypothesis_activity_stats('12345', '2025-01-01');
 
 drop function if exists public.sales_hypothesis_activity_stats(uuid, timestamptz);
+drop function if exists public.sales_hypothesis_activity_stats(text, timestamptz);
 
 create or replace function public.sales_hypothesis_activity_stats(p_tal_list_id text, p_since timestamptz)
 returns table (emails_sent_count int, linkedin_sent_count int, replies_count int)

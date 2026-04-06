@@ -83,14 +83,6 @@ async function callLocalWithRetry(
 
 async function runAll(req: Request, authHeader: string, isCron: boolean, requestId: string) {
   const bodySmartlead = JSON.stringify({ max_deals: 120, max_completed_leads: 200, retry_failed: false });
-  const bodySmartleadActivities = JSON.stringify({
-    max_campaigns: 1000,
-    max_leads_per_campaign: 200,
-    max_sequence_calls: 400,
-    use_stats_endpoint: true,
-    include_sequence_details: false,
-    debug: false
-  });
 
   const headersJson: Record<string, string> = { "Content-Type": "application/json" };
   if (authHeader) headersJson.Authorization = authHeader;
@@ -126,21 +118,10 @@ async function runAll(req: Request, authHeader: string, isCron: boolean, request
   const smartleadEnabled = hasEnv("SMARTLEAD_API_KEY");
   if (!smartleadEnabled) {
     steps.push({ name: "smartlead_sync", ok: true, status: 200, json: { ok: true, skipped: true, reason: "SMARTLEAD_API_KEY not configured" } });
-    steps.push({ name: "smartlead_activities_sync", ok: true, status: 200, json: { ok: true, skipped: true, reason: "SMARTLEAD_API_KEY not configured" } });
   } else {
     steps.push(
       await safeStep("smartlead_sync", () =>
         callLocalWithTimeout(req, "/api/smartlead/sync", { method: "POST", headers: headersJson, body: bodySmartlead }, 12_000)
-      )
-    );
-    steps.push(
-      await safeStep("smartlead_activities_sync", () =>
-        callLocalWithRetry(
-          req,
-          "/api/smartlead/activities/sync",
-          { method: "POST", headers: headersJson, body: bodySmartleadActivities },
-          { timeoutMs: 20_000, maxAttempts: 3, retryDelayMs: 3000 }
-        )
       )
     );
   }
@@ -171,6 +152,22 @@ export async function POST(req: Request) {
   const authHeader = String(req.headers.get("authorization") ?? "").trim();
   const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   if (!bearer) return jsonError(401, "Not authorized");
+
+  // Validate the bearer token against Supabase auth
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  if (!supabaseUrl || !supabaseAnonKey) return jsonError(500, "Supabase not configured");
+  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: "GET",
+    headers: { apikey: supabaseAnonKey, Authorization: authHeader }
+  });
+  if (!userRes.ok) return jsonError(401, "Not authorized");
+  const user = (await userRes.json()) as { email?: string | null };
+  if (!user?.email) return jsonError(401, "Not authorized");
+  const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
+  const email = String(user.email || "").toLowerCase();
+  if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return jsonError(403, "Forbidden");
+
   const requestId = rid();
   const result = await runAll(req, authHeader, false, requestId);
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });

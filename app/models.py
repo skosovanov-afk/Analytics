@@ -17,7 +17,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     role: Mapped[str] = mapped_column(String(32), default="bizdev")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     hypotheses: Mapped[list["Hypothesis"]] = relationship(back_populates="owner")
 
@@ -52,9 +52,9 @@ class Hypothesis(Base):
     start_date: Mapped[Optional[dt.date]] = mapped_column(Date, nullable=True)
     end_date: Mapped[Optional[dt.date]] = mapped_column(Date, nullable=True)
 
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow
+        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc), onupdate=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     owner: Mapped["User"] = relationship(back_populates="hypotheses")
@@ -93,7 +93,7 @@ class Call(Base):
     follow_up: Mapped[bool] = mapped_column(Boolean, default=False)
     disqualifier: Mapped[str] = mapped_column(String(200), default="")
 
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     links: Mapped[list["CallLink"]] = relationship(back_populates="call", cascade="all, delete-orphan")
     hypothesis: Mapped["Hypothesis | None"] = relationship()
@@ -125,7 +125,7 @@ class WeeklyMetric(Base):
 
     week_start: Mapped[dt.date] = mapped_column(Date)
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     hypothesis: Mapped["Hypothesis"] = relationship(back_populates="metrics")
 
@@ -143,7 +143,7 @@ class Company(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     raw_json: Mapped[str] = mapped_column(Text, default="{}")
 
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
 
 class Document(Base):
@@ -159,9 +159,9 @@ class Document(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     mtime_unix: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow
+        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc), onupdate=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
 
@@ -173,7 +173,7 @@ class VPPoint(Base):
     job_to_be_done: Mapped[str] = mapped_column(Text, default="")
     pain_friction: Mapped[str] = mapped_column(Text, default="")
     outcome_metric: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
 
 class ICP(Base):
@@ -184,7 +184,7 @@ class ICP(Base):
     role: Mapped[str] = mapped_column(String(200), default="")
     scale: Mapped[str] = mapped_column(String(200), default="")
     decision_context: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
 
 class Vertical(Base):
@@ -193,7 +193,7 @@ class Vertical(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     description: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     subs: Mapped[list["SubVertical"]] = relationship(back_populates="vertical", cascade="all, delete-orphan")
 
@@ -206,7 +206,7 @@ class SubVertical(Base):
     vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"), index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     vertical: Mapped["Vertical"] = relationship(back_populates="subs")
 
@@ -219,7 +219,7 @@ class TAL(Base):
     hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id"), index=True)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(200), default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     hypothesis: Mapped["Hypothesis"] = relationship(back_populates="tal")
     accounts: Mapped[list["TALAccount"]] = relationship(back_populates="tal", cascade="all, delete-orphan")
@@ -237,7 +237,7 @@ class TALAccount(Base):
     pain_hint: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(50), default="not_contacted", index=True)
     notes: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
 
     tal: Mapped["TAL"] = relationship(back_populates="accounts")
     company: Mapped["Company"] = relationship()
@@ -252,9 +252,9 @@ class Script(Base):
     hypothesis_id: Mapped[int] = mapped_column(ForeignKey("hypotheses.id"), index=True)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     content: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow
+        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc), onupdate=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     hypothesis: Mapped["Hypothesis"] = relationship(back_populates="script")

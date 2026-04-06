@@ -133,7 +133,7 @@ async function getCurrentUser(auth) {
 async function getOrCreateRole(auth, name) {
   const existing = await restSelect(auth, "sales_icp_roles", "id,name", { "name": `eq.${name}` });
   if (Array.isArray(existing) && existing[0]) return existing[0];
-  return await restInsertOne(auth, "sales_icp_roles", { name, decision_role: "DecisionMaker", seniority: "Senior", titles: [name] }, "id,name");
+  return await restInsertOne(auth, "sales_icp_roles", { name, decision_roles: ["DecisionMaker"], seniority: "Senior", titles: [name] }, "id,name");
 }
 
 async function getOrCreateCompany(auth, row) {
@@ -587,5 +587,4 @@ seed().catch((e) => {
   console.error(e?.stack || String(e));
   process.exit(1);
 });
-
 

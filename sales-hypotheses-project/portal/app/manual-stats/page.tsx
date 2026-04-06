@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../components/AppTopbar";
+import { getSupabase } from "../lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +19,16 @@ type StatRow = {
   metric_name: string;
   value: number;
   note: string | null;
+};
+
+type ManualStatInsert = {
+  record_date: string;
+  channel: Channel;
+  account_name: string | null;
+  campaign_name: string | null;
+  note: string | null;
+  metric_name: string;
+  value: number;
 };
 
 // ─── Metric definitions ───────────────────────────────────────────────────────
@@ -68,15 +78,20 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function factKey(row: ManualStatInsert): string {
+  return [
+    row.record_date,
+    row.channel,
+    row.account_name?.trim() || "",
+    row.campaign_name?.trim() || "",
+    row.metric_name,
+  ].join("::");
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManualStatsPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(
-    () => (supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null),
-    [supabaseUrl, supabaseAnonKey]
-  );
+  const supabase = useMemo(() => getSupabase(), []);
 
   // ─── Form state ───────────────────────────────────────────────────────────
 
@@ -147,7 +162,7 @@ export default function ManualStatsPage() {
       note: note.trim() || null,
     };
 
-    let inserts: object[] = [];
+    let inserts: ManualStatInsert[] = [];
 
     if (channel === "linkedin" || channel === "email") {
       // All metrics (channel-specific + funnel) are in fixedValues
@@ -175,11 +190,21 @@ export default function ManualStatsPage() {
       return;
     }
 
-    const { error } = await supabase.from("manual_stats").insert(inserts);
+    // Keep only the last value for the same logical fact inside a single submit batch.
+    const deduped = Array.from(
+      inserts.reduce((map, row) => map.set(factKey(row), row), new Map<string, ManualStatInsert>()).values()
+    );
+
+    const { error } = await supabase
+      .from("manual_stats")
+      .upsert(deduped, {
+        onConflict: "record_date,channel,account_name_key,campaign_name_key,metric_name",
+      });
+
     if (error) {
       setStatus(`Error: ${error.message}`);
     } else {
-      setStatus(`Сохранено ${inserts.length} метрик.`);
+      setStatus(`Сохранено ${deduped.length} метрик.`);
       setFixedValues({});
       setDynamicMetrics([{ name: "", value: "" }]);
       setFunnelValues({});

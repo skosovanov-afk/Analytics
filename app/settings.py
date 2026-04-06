@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,8 +17,15 @@ def _load_env_file() -> None:
 
 def get_secret_key() -> str:
     _load_env_file()
-    # Dev-only: allow override via env var.
-    return os.environ.get("PRODUCT_SECRET_KEY", "dev-secret-key-change-me")
+    key = os.environ.get("PRODUCT_SECRET_KEY", "")
+    if not key:
+        warnings.warn(
+            "PRODUCT_SECRET_KEY not set - using insecure default. "
+            "Set PRODUCT_SECRET_KEY env var in production!",
+            stacklevel=2,
+        )
+        return "dev-secret-key-change-me"
+    return key
 
 
 def get_database_url() -> str:

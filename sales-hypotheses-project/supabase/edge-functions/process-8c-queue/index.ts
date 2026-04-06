@@ -71,10 +71,13 @@ serve(async (req) => {
     console.log('⚠️  Edge Function implementation pending');
     console.log('   For now, use Node.js cron: node process-8c-queue.mjs --continuous');
 
-    // Mark as completed (placeholder)
+    // Mark as skipped (placeholder - implementation pending)
     await supabase
       .from('sales_8c_qualification_queue')
-      .delete()
+      .update({
+        status: 'skipped_not_implemented',
+        completed_at: new Date().toISOString(),
+      })
       .eq('id', queueItem.id);
 
     return new Response(

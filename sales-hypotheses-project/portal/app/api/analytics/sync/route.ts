@@ -5,8 +5,24 @@ import path from "path";
 // RPC Name to check
 const RPC_NAME = "sales_analytics_sync";
 
+type SupabaseUserResponse = { email?: string | null };
+
 function jsonError(status: number, message: string) {
     return NextResponse.json({ ok: false, error: message }, { status });
+}
+
+async function getSupabaseUserFromAuthHeader(authHeader: string | null) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+    if (!authHeader?.startsWith("Bearer ")) return null;
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "GET",
+        headers: { apikey: supabaseAnonKey, Authorization: authHeader }
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as SupabaseUserResponse;
 }
 
 async function runSql(query: string) {
@@ -21,7 +37,7 @@ async function runSql(query: string) {
     // But we can try to use the REST API 'POST /rest/v1/rpc/...' assuming we have a privileged user?
     // No, standard PostgREST doesn't allow raw SQL.
 
-    // However, since we are stuck without MCP, we'll try to rely on the fact that maybe the migration actually applied 
+    // However, since we are stuck without MCP, we'll try to rely on the fact that maybe the migration actually applied
     // despite the EOF error (sometimes happens).
     // Or we just return error telling user to run it manually.
 
@@ -31,6 +47,13 @@ async function runSql(query: string) {
 
 export async function POST(req: Request) {
     try {
+        const authHeader = req.headers.get("authorization");
+        const user = await getSupabaseUserFromAuthHeader(authHeader);
+        if (!user?.email) return jsonError(401, "Not authorized");
+        const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
+        const email = String(user.email || "").toLowerCase();
+        if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return jsonError(403, "Forbidden");
+
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 

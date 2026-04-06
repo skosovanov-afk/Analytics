@@ -5,9 +5,9 @@ import type { CSSProperties, ReactNode } from "react";
 export function FadeIn({
   children,
   delay = 0,
-  duration = 380,
-  blur = false,
-  translateY = 0,
+  duration = 420,
+  blur = true,
+  translateY = 10,
   className,
   style,
 }: {

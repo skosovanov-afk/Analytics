@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
 import { FadeIn } from "../components/FadeIn";
 import { SpotlightCard } from "../components/SpotlightCard";
+import { getSupabase } from "../lib/supabase";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Period = "7d" | "30d" | "90d" | "all";
@@ -114,6 +116,7 @@ const CONVERSION_METRIC_LABELS: Record<ConversionMetric, string> = {
 };
 
 const COLORS = ["#7dd3fc", "#a7f3d0", "#fca5a5", "#c4b5fd", "#fde68a", "#fdba74"];
+const TOTAL_SERIES_COLOR = "var(--chartTotal)";
 const PAGE_SIZE = 1000;
 const TOP_CAMPAIGN_LINES = 5;
 const MIN_CONVERSION_DENOMINATOR = 20;
@@ -190,7 +193,7 @@ function emptyCampaignBucketStats(): CampaignBucketStats {
 }
 
 async function fetchLinkedinAliases(
-  supabase: ReturnType<typeof createClient> | any
+  supabase: any
 ): Promise<CampaignAliasRow[]> {
   const { data, error } = await supabase
     .from("campaign_name_aliases")
@@ -389,7 +392,7 @@ function LineChart({
         })
     : [];
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!hover) return;
     const wrap = chartRef.current;
     const tip = tipRef.current;
@@ -414,9 +417,9 @@ function LineChart({
           <g key={i}>
             <line
               x1={pL} y1={yFor(t)} x2={W - pR} y2={yFor(t)}
-              stroke="rgba(255,255,255,0.07)" strokeWidth={1}
+              stroke="var(--chartGrid)" strokeWidth={1}
             />
-            <text x={pL - 6} y={yFor(t) + 4} textAnchor="end" fontSize={10} fill="rgba(255,255,255,0.4)">
+            <text x={pL - 6} y={yFor(t) + 4} textAnchor="end" fontSize={10} fill="var(--chartAxis)">
               {formatYTick ? formatYTick(t) : t >= 1000 ? `${(t / 1000).toFixed(0)}k` : t.toFixed(0)}
             </text>
           </g>
@@ -425,7 +428,7 @@ function LineChart({
         {buckets.map((value, i) => {
           if (i % step !== 0 && i !== buckets.length - 1) return null;
           return (
-            <text key={value} x={xFor(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="rgba(255,255,255,0.38)">
+            <text key={value} x={xFor(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="var(--chartAxis)">
               {formatBucketLabel(value, bucket)}
             </text>
           );
@@ -496,31 +499,25 @@ function LineChart({
 
       {hover && hoverBreakdown.length ? (
         <div
-          className="card"
+          className="chartTooltip chartTooltipWide"
           ref={tipRef}
           style={{
-            position: "absolute",
             left: tipPos.left,
             top: tipPos.top,
-            padding: 10,
-            width: 280,
-            background: "rgba(10,12,18,0.94)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            pointerEvents: "none",
             zIndex: 10,
           }}
         >
           <div className="mono" style={{ fontSize: 12, opacity: 0.9 }}>
             {tooltipTitle ? `${tooltipTitle} · ` : ""}{buckets[hover.i]}
           </div>
-          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+          <div className="chartTooltipRows">
             {hoverBreakdown.map((row) => (
-              <div key={row.label} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div key={row.label} className="chartTooltipRow">
                 <span style={{ width: 10, height: 10, borderRadius: 2, background: row.color, display: "inline-block" }} />
-                <span style={{ flex: 1, fontSize: 12, opacity: row.emphasis === "total" ? 1 : 0.9, fontWeight: row.emphasis === "total" ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span className="chartTooltipLabel" style={{ opacity: row.emphasis === "total" ? 1 : 0.9, fontWeight: row.emphasis === "total" ? 700 : 500 }}>
                   {row.label}
                 </span>
-                <span className="mono" style={{ fontSize: 12, opacity: 0.92 }}>
+                <span className="mono chartTooltipValue">
                   {row.point?.tooltip ?? ""}
                 </span>
               </div>
@@ -529,10 +526,10 @@ function LineChart({
         </div>
       ) : null}
 
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10 }}>
+      <div className="chartLegend">
         {series.map((s, i) => (
-          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-            <span style={{ width: s.emphasis === "total" ? 16 : 12, height: s.emphasis === "total" ? 4 : 3, borderRadius: 2, background: s.color, display: "inline-block" }} />
+          <span key={i} className="chartLegendItem">
+            <span className="chartLegendSwatch" style={{ width: s.emphasis === "total" ? 16 : 12, height: s.emphasis === "total" ? 4 : 3, background: s.color }} />
             {s.label}
           </span>
         ))}
@@ -551,12 +548,7 @@ function SortIcon({ col, sortKey, sortDir }: { col: string; sortKey: string; sor
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExpandiPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(
-    () => (supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null),
-    [supabaseUrl, supabaseAnonKey]
-  );
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -858,10 +850,10 @@ export default function ExpandiPage() {
       replies: rep,
       booked_meetings: booked,
       held_meetings: held,
-      cr_accept: conn > 0 ? Math.min((acc / conn) * 100, 100) : 0,
-      cr_reply: msg > 0 ? (rep / msg) * 100 : 0,
-      cr_booked: rep > 0 ? (booked / rep) * 100 : 0,
-      cr_held: booked > 0 ? (held / booked) * 100 : 0,
+      cr_accept: conn > 0 ? Math.min((acc / conn) * 100, 100) : null,
+      cr_reply: msg > 0 ? (rep / msg) * 100 : null,
+      cr_booked: rep > 0 ? (booked / rep) * 100 : null,
+      cr_held: booked > 0 ? (held / booked) * 100 : null,
     };
   }, [campaignRows]);
 
@@ -955,7 +947,7 @@ export default function ExpandiPage() {
       }));
     const totalSeries: LineChartSeries = {
       label: "Total",
-      color: "#ffffff",
+      color: TOTAL_SERIES_COLOR,
       emphasis: "total",
       values: chartBuckets.map((key) => {
         const value = totalChartBuckets.has(key) ? n(totalChartBuckets.get(key)?.[activityMetric]) : null;
@@ -1005,7 +997,7 @@ export default function ExpandiPage() {
       }));
     const totalSeries: LineChartSeries = {
       label: "Total",
-      color: "#ffffff",
+      color: TOTAL_SERIES_COLOR,
       emphasis: "total",
       values: chartBuckets.map((key) => {
         const bucketStats = totalChartBuckets.get(key);
@@ -1119,7 +1111,7 @@ export default function ExpandiPage() {
     else { setSortKey(key); setSortDir("desc"); }
   }
 
-  const rangeLabel = period === "all" ? "All time · since 2025-08-31" : `Last ${period}`;
+  const rangeLabel = period === "all" ? "All time" : `Last ${period}`;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -1166,6 +1158,7 @@ export default function ExpandiPage() {
                   key={p}
                   className={`btn${period === p ? " btnPrimary" : ""}`}
                   onClick={() => setPeriod(p)}
+                  disabled={loading}
                 >
                   {p === "all" ? "All" : p.toUpperCase()}
                 </button>
@@ -1176,7 +1169,7 @@ export default function ExpandiPage() {
 
         {/* ── KPI cards ───────────────────────────────────────────────────── */}
         <FadeIn delay={60} style={{ gridColumn: "span 12" }}>
-          <div className="kpiRow" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
+          <div className="kpiRow kpiRowFive">
             {[
               { label: "Connections sent", numVal: totals.connection_req, strVal: null, sub: null },
               { label: "Accepted", numVal: totals.accepted, strVal: null, sub: `${pctStr(totals.cr_accept)} of connections` },
@@ -1343,8 +1336,8 @@ export default function ExpandiPage() {
                         <td className="mono">{r.replies.toLocaleString()}</td>
                         <td className="mono">{pctStr(r.cr_accept)}</td>
                         <td className="mono">{pctStr(r.cr_reply)}</td>
-                        <td className="mono">{r.booked || "—"}</td>
-                        <td className="mono">{r.held || "—"}</td>
+                        <td className="mono">{r.booked != null ? r.booked : "—"}</td>
+                        <td className="mono">{r.held != null ? r.held : "—"}</td>
                       </tr>
                     );
                   })}
@@ -1419,16 +1412,16 @@ export default function ExpandiPage() {
                 </tbody>
               </table>
               {campaignRows.length > 10 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 4px 4px", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 4, fontSize: 13 }}>
+                <div className="tableFooter">
                   <span className="muted2">
                     {tablePageSize === "all" ? `All ${campaignRows.length} campaigns` : `${from}–${to} of ${campaignRows.length}`}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="tableFooterControls">
                     <span className="muted2">Rows per page:</span>
                     <select
+                      className="select paginationSelect"
                       value={tablePageSize}
                       onChange={(e) => { const v = e.target.value === "all" ? "all" : Number(e.target.value); setTablePageSize(v as number | "all"); setTablePage(0); }}
-                      style={{ background: "transparent", color: "inherit", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 4, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
                     >
                       <option value={10}>10</option>
                       <option value={25}>25</option>
@@ -1436,7 +1429,7 @@ export default function ExpandiPage() {
                       <option value="all">All</option>
                     </select>
                     {tablePageSize !== "all" && totalPages > 1 && (
-                      <div style={{ display: "flex", gap: 2 }}>
+                      <div className="paginationControls">
                         <button className="btn" onClick={() => setTablePage((p) => Math.max(0, p - 1))} disabled={tablePage === 0} style={{ padding: "2px 8px" }}>‹</button>
                         {Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - tablePage) <= 2).map(i => (
                           <button key={i} className={`btn${i === tablePage ? " btnPrimary" : ""}`} onClick={() => setTablePage(i)} style={{ padding: "2px 8px", minWidth: 32 }}>{i + 1}</button>

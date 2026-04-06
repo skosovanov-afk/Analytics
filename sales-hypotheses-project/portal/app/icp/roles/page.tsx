@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../../components/AppTopbar";
+import { getSupabase } from "../../lib/supabase";
 
 type RoleRow = {
   id: string;
   name: string;
-  decision_role: string | null; // legacy
+  decision_role?: string | null; // legacy; may be absent in standalone/prod schema
   decision_roles?: string[] | null; // preferred (multi-select)
   seniority: string | null;
   titles: string[] | null;
@@ -18,12 +18,7 @@ type RoleRow = {
 const DECISION_ROLE_OPTIONS = ["DecisionMaker", "Influencer", "User"] as const;
 
 export default function IcpRolesPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<RoleRow[]>([]);
@@ -51,12 +46,16 @@ export default function IcpRolesPage() {
   async function load() {
     if (!supabase) return;
     setStatus("Loading...");
-    const sess = await supabase.auth.getSession();
-    if (!sess.data.session) return setStatus("Not signed in. Go back to /.");
-    const res = await supabase.from("sales_icp_roles").select("*").order("updated_at", { ascending: false }).limit(200);
-    if (res.error) return setStatus(`roles error: ${res.error.message}`);
-    setRows((res.data ?? []) as any);
-    setStatus("");
+    try {
+      const sess = await supabase.auth.getSession();
+      if (!sess.data.session) return setStatus("Not signed in. Go back to /.");
+      const res = await supabase.from("sales_icp_roles").select("*").order("updated_at", { ascending: false }).limit(200);
+      if (res.error) return setStatus(`roles error: ${res.error.message}`);
+      setRows((res.data ?? []) as any);
+      setStatus("");
+    } catch (err) {
+      setStatus(`Error: ${err instanceof Error ? err.message : "Failed to load"}`);
+    }
   }
 
   useEffect(() => {
@@ -72,8 +71,6 @@ export default function IcpRolesPage() {
     const payload: any = {
       name: newName.trim(),
       decision_roles: roles,
-      // Backward-compat: keep the first selected value in the legacy column.
-      decision_role: roles[0] || null,
       seniority: newSeniority.trim() || null,
       titles: newTitles.split(",").map((x) => x.trim()).filter(Boolean),
       notes: newNotes.trim() || null
@@ -227,7 +224,7 @@ export default function IcpRolesPage() {
               <div className="cardDesc">Inline editable.</div>
             </div>
           </div>
-          <div className="cardBody">
+          <div className="cardBody" style={{ overflowX: "auto" }}>
             <table className="table">
               <thead>
                 <tr>
@@ -262,8 +259,7 @@ export default function IcpRolesPage() {
                                 checked={checked}
                                 onChange={async () => {
                                   const next = toggleInArray(selected, opt);
-                                  // Preferred: decision_roles[]; legacy: decision_role (first selected).
-                                  await updateField(r.id, { decision_roles: next as any, decision_role: next[0] || null } as any);
+                                  await updateField(r.id, { decision_roles: next as any } as any);
                                 }}
                               />
                               <span>{opt}</span>
@@ -306,5 +302,4 @@ export default function IcpRolesPage() {
     </main>
   );
 }
-
 

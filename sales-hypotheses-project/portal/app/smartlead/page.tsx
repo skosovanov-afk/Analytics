@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
 import { FadeIn } from "../components/FadeIn";
 import { SpotlightCard } from "../components/SpotlightCard";
+import { getSupabase } from "../lib/supabase";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Period = "7d" | "30d" | "90d" | "all";
@@ -142,7 +142,7 @@ function bucketUnit(bucket: ChartBucket): string {
 
 // Fetch all rows with pagination (bypasses 1000-row API limit)
 async function fetchAllRows(
-  supabase: ReturnType<typeof createClient> | any,
+  supabase: any,
   table: string,
   select: string
 ): Promise<DailyRow[]> {
@@ -161,7 +161,7 @@ async function fetchAllRows(
 }
 
 async function fetchManualEmailRows(
-  supabase: ReturnType<typeof createClient> | any
+  supabase: any
 ): Promise<ManualStatRow[]> {
   const all: ManualStatRow[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
@@ -180,7 +180,7 @@ async function fetchManualEmailRows(
 }
 
 async function fetchEmailAliases(
-  supabase: ReturnType<typeof createClient> | any
+  supabase: any
 ): Promise<CampaignAliasRow[]> {
   const { data, error } = await supabase
     .from("campaign_name_aliases")
@@ -200,14 +200,19 @@ function normalizeCampaignName(
 }
 
 async function fetchReplyCategoryRows(
-  supabase: ReturnType<typeof createClient> | any
+  supabase: any,
+  since?: string,
+  until?: string
 ): Promise<ReplyCategoryEventRow[]> {
   const eventRows: ReplyEventRow[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("smartlead_events")
       .select("occurred_at,campaign_id,campaign_name,lead_id,email")
-      .eq("event_type", "reply")
+      .eq("event_type", "reply");
+    if (since) query = query.gte("occurred_at", since);
+    if (until) query = query.lte("occurred_at", `${until}T23:59:59`);
+    const { data, error } = await query
       .order("occurred_at", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
@@ -377,8 +382,8 @@ function LineChart({
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line x1={pL} y1={yFor(t)} x2={W - pR} y2={yFor(t)} stroke="rgba(255,255,255,0.07)" strokeWidth={1} />
-            <text x={pL - 6} y={yFor(t) + 4} textAnchor="end" fontSize={10} fill="rgba(255,255,255,0.4)">
+            <line x1={pL} y1={yFor(t)} x2={W - pR} y2={yFor(t)} stroke="var(--chartGrid)" strokeWidth={1} />
+            <text x={pL - 6} y={yFor(t) + 4} textAnchor="end" fontSize={10} fill="var(--chartAxis)">
               {t >= 1000 ? `${(t / 1000).toFixed(0)}k` : t.toFixed(0)}
             </text>
           </g>
@@ -386,7 +391,7 @@ function LineChart({
         {buckets.map((value, i) => {
           if (i % step !== 0 && i !== buckets.length - 1) return null;
           return (
-            <text key={value} x={xFor(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="rgba(255,255,255,0.38)">
+            <text key={value} x={xFor(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="var(--chartAxis)">
               {formatBucketLabel(value, bucket)}
             </text>
           );
@@ -407,10 +412,10 @@ function LineChart({
           );
         })}
       </svg>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10 }}>
+      <div className="chartLegend">
         {series.map((s, i) => (
-          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-            <span style={{ width: 12, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />
+          <span key={i} className="chartLegendItem">
+            <span className="chartLegendSwatch" style={{ width: 12, height: 3, background: s.color }} />
             {s.label}
           </span>
         ))}
@@ -429,14 +434,10 @@ function SortIcon({ col, sortKey, sortDir }: { col: string; sortKey: string; sor
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SmartleadPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const supabase = useMemo(
-    () => (supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null),
-    [supabaseUrl, supabaseAnonKey]
-  );
+  const supabase = useMemo(() => getSupabase(), []);
 
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [manualRows, setManualRows] = useState<ManualStatRow[]>([]);
   const [replyCategoryRows, setReplyCategoryRows] = useState<ReplyCategoryEventRow[]>([]);
@@ -469,53 +470,63 @@ export default function SmartleadPage() {
 
   // ─── Load (once, all data) ──────────────────────────────────────────────────
 
-  async function load() {
-    if (!supabase) return;
-    setStatus("Loading…");
-    const sess = await supabase.auth.getSession();
-    if (!sess.data.session) {
-      setStatus("Not signed in. Go back to / and sign in.");
-      return;
-    }
-    try {
-      const [data, manual, aliases] = await Promise.all([
-        fetchAllRows(supabase, "smartlead_stats_daily", "date,campaign_name,sent_count,reply_count,touch_number,unique_leads_count"),
-        fetchManualEmailRows(supabase),
-        fetchEmailAliases(supabase),
-      ]);
-      const aliasMap = new Map(
-        aliases.map((row) => [row.alias.trim().toLowerCase(), row.canonical.trim()])
-      );
-      setRows(data);
-      setManualRows(
-        manual.map((row) => ({
-          ...row,
-          campaign_name: normalizeCampaignName(row.campaign_name, aliasMap),
-        }))
-      );
-      setReplyCategoryStatus("Loading reply categories…");
-      void fetchReplyCategoryRows(supabase)
-        .then((replyCategories) => {
-          setReplyCategoryRows(
-            replyCategories.map((row) => ({
-              ...row,
-              campaign_name: normalizeCampaignName(row.campaign_name, aliasMap),
-            }))
-          );
-          setReplyCategoryStatus("");
-        })
-        .catch((error: unknown) => {
-          setReplyCategoryRows([]);
-          setReplyCategoryStatus(`Reply categories unavailable: ${(error as Error).message}`);
-        });
-    } catch (e: unknown) {
-      setStatus(`Error: ${(e as Error).message}`);
-      return;
-    }
-    setStatus("");
-  }
+  const [loadTick, setLoadTick] = useState(0);
 
-  useEffect(() => { load(); }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!supabase) return;
+      setLoading(true);
+      setStatus("Loading…");
+      const sess = await supabase.auth.getSession();
+      if (!sess.data.session) {
+        if (!cancelled) setStatus("Not signed in. Go back to / and sign in.");
+        return;
+      }
+      try {
+        const [data, manual, aliases] = await Promise.all([
+          fetchAllRows(supabase, "smartlead_stats_daily", "date,campaign_name,sent_count,reply_count,touch_number,unique_leads_count"),
+          fetchManualEmailRows(supabase),
+          fetchEmailAliases(supabase),
+        ]);
+        if (cancelled) return;
+        const aliasMap = new Map(
+          aliases.filter((row: { alias: string; canonical: string }) => row.alias && row.canonical).map((row: { alias: string; canonical: string }) => [row.alias.trim().toLowerCase(), row.canonical.trim()])
+        );
+        setRows(data);
+        setManualRows(
+          manual.map((row: ManualStatRow) => ({
+            ...row,
+            campaign_name: normalizeCampaignName(row.campaign_name, aliasMap),
+          }))
+        );
+        setReplyCategoryStatus("Loading reply categories…");
+        const defaultSince = new Date();
+        defaultSince.setDate(defaultSince.getDate() - 90);
+        fetchReplyCategoryRows(supabase, defaultSince.toISOString().slice(0, 10))
+          .then((replyCategories) => {
+            if (cancelled) return;
+            setReplyCategoryRows(
+              replyCategories.map((row) => ({
+                ...row,
+                campaign_name: normalizeCampaignName(row.campaign_name, aliasMap),
+              }))
+            );
+            setReplyCategoryStatus("");
+          })
+          .catch((error: unknown) => {
+            if (cancelled) return;
+            setReplyCategoryRows([]);
+            setReplyCategoryStatus(`Reply categories unavailable: ${(error as Error).message}`);
+          });
+      } catch (e: unknown) {
+        if (!cancelled) { setStatus(`Error: ${(e as Error).message}`); setLoading(false); }
+        return;
+      }
+      if (!cancelled) { setStatus(""); setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [supabase, loadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Available date range ─────────────────────────────────────────────────
 
@@ -786,11 +797,11 @@ export default function SmartleadPage() {
               <div className="cardTitle" style={{ fontFamily: "var(--sans)", fontWeight: 600 }}>Email Outreach Analytics</div>
               <div className="cardDesc">
                 {rangeLabel} ·{" "}
-                {Math.max(campaignRows.length, manualCampaignCount)} кампаний
+                {Math.max(campaignRows.length, manualCampaignCount)} campaigns
               </div>
             </div>
             <div className="btnRow">
-              <button className="btn" onClick={load} title="Refresh data">↻</button>
+              <button className="btn" onClick={() => setLoadTick((t) => t + 1)} disabled={loading} title="Refresh data">↻</button>
             </div>
           </div>
           <div className="cardBody">
@@ -800,6 +811,7 @@ export default function SmartleadPage() {
                   key={p}
                   className={`btn${period === p ? " btnPrimary" : ""}`}
                   onClick={() => setPeriod(p)}
+                  disabled={loading}
                 >
                   {p === "all" ? "All" : p.toUpperCase()}
                 </button>
@@ -810,7 +822,7 @@ export default function SmartleadPage() {
 
         {/* ── KPI cards ────────────────────────────────────────────────────── */}
         <FadeIn delay={60} style={{ gridColumn: "span 12" }}>
-          <div className="kpiRow" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
+          <div className="kpiRow kpiRowFive">
             {[
               { label: "Emails sent", numVal: totals.sent, strVal: null, sub: null },
               {
@@ -926,7 +938,7 @@ export default function SmartleadPage() {
           <div className="cardBody" style={{ overflowX: "auto" }}>
             {tab === "campaign" ? (() => {
               const ps = tablePageSize === "all" ? campaignRows.length : tablePageSize;
-              const totalPages = Math.ceil(campaignRows.length / ps);
+              const totalPages = campaignRows.length === 0 ? 1 : Math.ceil(campaignRows.length / ps);
               const visibleRows = tablePageSize === "all" ? campaignRows : campaignRows.slice(tablePage * ps, (tablePage + 1) * ps);
               const from = Math.min(tablePage * ps + 1, campaignRows.length);
               const to = Math.min((tablePage + 1) * ps, campaignRows.length);
@@ -974,16 +986,16 @@ export default function SmartleadPage() {
                 </tbody>
               </table>
               {campaignRows.length > 10 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 4px 4px", borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 4, fontSize: 13 }}>
+                <div className="tableFooter">
                   <span className="muted2">
                     {tablePageSize === "all" ? `All ${campaignRows.length} campaigns` : `${from}–${to} of ${campaignRows.length}`}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="tableFooterControls">
                     <span className="muted2">Rows per page:</span>
                     <select
+                      className="select paginationSelect"
                       value={tablePageSize}
                       onChange={(e) => { const v = e.target.value === "all" ? "all" : Number(e.target.value); setTablePageSize(v as number | "all"); setTablePage(0); }}
-                      style={{ background: "transparent", color: "inherit", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 4, padding: "3px 6px", fontSize: 13, cursor: "pointer" }}
                     >
                       <option value={10}>10</option>
                       <option value={25}>25</option>
@@ -991,7 +1003,7 @@ export default function SmartleadPage() {
                       <option value="all">All</option>
                     </select>
                     {tablePageSize !== "all" && totalPages > 1 && (
-                      <div style={{ display: "flex", gap: 2 }}>
+                      <div className="paginationControls">
                         <button className="btn" onClick={() => setTablePage((p) => Math.max(0, p - 1))} disabled={tablePage === 0} style={{ padding: "2px 8px" }}>‹</button>
                         {Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - tablePage) <= 2).map(i => (
                           <button key={i} className={`btn${i === tablePage ? " btnPrimary" : ""}`} onClick={() => setTablePage(i)} style={{ padding: "2px 8px", minWidth: 32 }}>{i + 1}</button>
@@ -1051,8 +1063,8 @@ export default function SmartleadPage() {
                         <td className="mono">{r.sent.toLocaleString()}</td>
                         <td className="mono">{r.reply.toLocaleString()}</td>
                         <td className="mono">{pctStr(r.reply, r.sent)}</td>
-                        <td className="mono">{r.booked || "—"}</td>
-                        <td className="mono">{r.held || "—"}</td>
+                        <td className="mono">{r.booked != null ? r.booked : "—"}</td>
+                        <td className="mono">{r.held != null ? r.held : "—"}</td>
                       </tr>
                     );
                   })}
@@ -1070,27 +1082,11 @@ export default function SmartleadPage() {
       {replyBreakdownOpen && (
         <div
           onClick={() => setReplyBreakdownOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.18)",
-            backdropFilter: "blur(6px)",
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-          }}
+          className="dialogScrim"
         >
           <div
-            className="card"
+            className="card dialogCard"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(1120px, calc(100vw - 48px))",
-              maxHeight: "calc(100vh - 48px)",
-              overflow: "auto",
-              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.18)",
-            }}
           >
             <div className="cardHeader">
               <div>

@@ -1,34 +1,13 @@
 import { NextResponse } from "next/server";
-
-type SupabaseUserResponse = { email?: string | null };
+import {
+  getSupabaseUserFromAuthHeader,
+  postgrestHeadersFor,
+  postgrestJson,
+  type PostgrestHeaders
+} from "@/app/lib/supabase-server";
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function getSupabaseUserFromAuthHeader(authHeader: string | null) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    method: "GET",
-    headers: { apikey: supabaseAnonKey, Authorization: authHeader }
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as SupabaseUserResponse;
-}
-
-function ymdAddDaysLocal(ymd: string, days: number) {
-  const [y, m, d] = String(ymd || "").split("-").map((x) => Number(x));
-  if (!y || !m || !d) return "";
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
 }
 
 function daysInclusive(since: string, until: string) {
@@ -53,26 +32,30 @@ function pickBucketSizeDays(days: number) {
   return 28;
 }
 
-function looksLikeMissingRelation(msg: string) {
-  const t = String(msg || "").toLowerCase();
-  return t.includes("could not find the table") || t.includes("schema cache") || (t.includes("relation") && t.includes("does not exist"));
-}
-
-async function postgrestGetPaged(authHeader: string, pathBase: string, maxRows: number) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+async function postgrestGetPaged(h: PostgrestHeaders, pathBase: string, maxRows: number) {
   const out: any[] = [];
   const limit = Math.max(1, Math.min(20000, Number(maxRows || 20000)));
   for (let offset = 0; offset < limit; offset += 1000) {
-    const url = `${supabaseUrl}/rest/v1/${pathBase}&limit=1000&offset=${offset}`;
-    const res = await fetch(url, { headers: { apikey: supabaseAnonKey, Authorization: authHeader } });
-    const json = (await res.json().catch(() => null)) as any;
-    if (!res.ok) throw new Error(String(json?.message || json?.error || "Supabase query failed"));
-    const rows = Array.isArray(json) ? json : [];
-    out.push(...rows);
-    if (rows.length < 1000) break;
+    const sep = pathBase.includes("?") ? "&" : "?";
+    const rows = await postgrestJson(h, "GET", `${pathBase}${sep}limit=1000&offset=${offset}`);
+    const batch = Array.isArray(rows) ? rows : [];
+    out.push(...batch);
+    if (batch.length < 1000) break;
   }
   return out.slice(0, limit);
+}
+
+type DailyRow = {
+  date: string;
+  campaign_id: number | null;
+  sent_count: number | null;
+  open_count: number | null;
+  reply_count: number | null;
+};
+
+function num(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export async function POST(req: Request) {
@@ -80,7 +63,7 @@ export async function POST(req: Request) {
     const authHeader = req.headers.get("authorization");
     const user = await getSupabaseUserFromAuthHeader(authHeader);
     if (!user?.email) return jsonError(401, "Not authorized");
-    const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "@oversecured.com";
+    const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "";
     const email = String(user.email || "").toLowerCase();
     if (allowedDomain && !email.endsWith(String(allowedDomain).toLowerCase())) return jsonError(403, "Forbidden");
 
@@ -90,6 +73,10 @@ export async function POST(req: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until)) {
       return jsonError(400, "since/until must be YYYY-MM-DD");
     }
+
+    const campaignIds = Array.isArray(payload?.campaign_ids)
+      ? payload.campaign_ids.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
 
     const fullDays = daysInclusive(since, until);
     const bucketSizeDays = pickBucketSizeDays(fullDays.length);
@@ -102,81 +89,38 @@ export async function POST(req: Request) {
       emails_opened: init(),
       emails_replied: init()
     };
-    /**
-     * Track unique contacts per day bucket to align with SmartLead UI counts.
-     *
-     * SmartLead "Emails Sent" is unique leads contacted, not message count.
-     */
-    const uniquePerBucket = {
-      sent: bucketStarts.map(() => new Set<string>()),
-      opened: bucketStarts.map(() => new Set<string>()),
-      replied: bucketStarts.map(() => new Set<string>())
-    };
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-    if (!supabaseUrl || !supabaseAnonKey) return jsonError(500, "Missing Supabase env");
+    const h = postgrestHeadersFor(String(authHeader ?? ""), false);
+    const campaignFilter = campaignIds.length
+      ? `&campaign_id=in.(${campaignIds.map((n) => encodeURIComponent(String(n))).join(",")})`
+      : "";
 
-    const sinceIso = `${since}T00:00:00.000Z`;
-    const untilExcl = ymdAddDaysLocal(until, 1);
-    const untilIso = `${untilExcl}T00:00:00.000Z`;
-    const campaignIds = Array.isArray(payload?.campaign_ids)
-      ? payload.campaign_ids.map((x) => Number(x)).filter((n) => Number.isFinite(n))
-      : [];
-    const campaignFilter = campaignIds.length ? `&smartlead_campaign_id=in.(${campaignIds.map((n) => encodeURIComponent(String(n))).join(",")})` : "";
+    const rows = (await postgrestGetPaged(
+      h,
+      "smartlead_stats_daily" +
+        "?select=date,campaign_id,sent_count,open_count,reply_count" +
+        `&date=gte.${encodeURIComponent(since)}` +
+        `&date=lte.${encodeURIComponent(until)}` +
+        campaignFilter +
+        "&order=date.asc",
+      20000
+    )) as DailyRow[];
 
-    const where =
-      `sales_smartlead_events?select=event_type,occurred_at,smartlead_campaign_id,smartlead_event_id,contact_email` +
-      `&occurred_at=gte.${encodeURIComponent(sinceIso)}` +
-      `&occurred_at=lt.${encodeURIComponent(untilIso)}` +
-      campaignFilter +
-      `&order=occurred_at.asc`;
-    const rows = await postgrestGetPaged(authHeader!, where, 20000);
-
-    for (const r of Array.isArray(rows) ? rows : []) {
-      const at = String(r?.occurred_at ?? "").trim();
-      const day = at ? at.slice(0, 10) : "";
+    for (const row of rows) {
+      const day = String(row?.date ?? "").slice(0, 10);
       if (!day) continue;
-      // map to bucket start day
       const fullIdx = dayToFullIdx.get(day);
       if (fullIdx == null) continue;
       const bucketStart = fullDays[Math.floor(fullIdx / bucketSizeDays) * bucketSizeDays];
       const i = idx.get(bucketStart);
       if (i == null) continue;
-      const t = String(r?.event_type ?? "").trim().toLowerCase();
-      // Ignore legacy synthetic `sent` events that were mistakenly generated from lead fields.
-      // They can inflate Sent and distort the chart for historical data.
-      const eid = String(r?.smartlead_event_id ?? "");
-      if (t === "sent" && (eid.includes("lead_fields") || eid.includes("lead_status"))) continue;
-      const email = String(r?.contact_email ?? "").trim().toLowerCase();
-      if (!email) continue;
-      if (t === "sent") uniquePerBucket.sent[i].add(email);
-      else if (t === "opened") uniquePerBucket.opened[i].add(email);
-      else if (t === "replied") uniquePerBucket.replied[i].add(email);
-    }
-
-    // Convert unique sets to counts for the response payload.
-    for (let i = 0; i < bucketStarts.length; i++) {
-      series.emails_sent[i] = uniquePerBucket.sent[i].size;
-      series.emails_opened[i] = uniquePerBucket.opened[i].size;
-      series.emails_replied[i] = uniquePerBucket.replied[i].size;
+      series.emails_sent[i] += num(row?.sent_count);
+      series.emails_opened[i] += num(row?.open_count);
+      series.emails_replied[i] += num(row?.reply_count);
     }
 
     return NextResponse.json({ ok: true, since, until, campaign_ids: campaignIds, days: bucketStarts, bucket_size_days: bucketSizeDays, series });
   } catch (e: any) {
-    const msg = String(e?.message || e);
-    if (looksLikeMissingRelation(msg)) {
-      return NextResponse.json({
-        ok: true,
-        disabled: true,
-        reason: msg,
-        days: [],
-        bucket_size_days: 1,
-        series: { emails_sent: [], emails_opened: [], emails_replied: [] }
-      });
-    }
-    return jsonError(500, msg);
+    return jsonError(500, String(e?.message || e));
   }
 }
-
-
