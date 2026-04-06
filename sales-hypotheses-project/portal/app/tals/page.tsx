@@ -95,7 +95,8 @@ export default function TalsPage() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
   const [unlinked, setUnlinked] = useState<UnlinkedCampaign[]>([]);
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
@@ -147,8 +148,10 @@ export default function TalsPage() {
     );
   }, [tals, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTals.length / PAGE_SIZE));
-  const pagedTals = filteredTals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredTals.length / rowsPerPage));
+  const pagedTals = filteredTals.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+  const rangeStart = filteredTals.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
+  const rangeEnd = Math.min(page * rowsPerPage, filteredTals.length);
 
   // Reset page when search changes
   useEffect(() => { setPage(1); }, [search]);
@@ -289,18 +292,40 @@ export default function TalsPage() {
             ))}
 
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
+            {filteredTals.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, padding: "8px 0" }}>
                 <span className="muted2" style={{ fontSize: 13 }}>
-                  {page} / {totalPages} ({filteredTals.length} TALs)
+                  {rangeStart}–{rangeEnd} of {filteredTals.length}
                 </span>
-                <button className="btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next →</button>
-              </div>
-            )}
-            {totalPages <= 1 && filteredTals.length > 0 && (
-              <div style={{ textAlign: "center" }}>
-                <span className="muted2" style={{ fontSize: 12 }}>{filteredTals.length} TALs</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="muted2" style={{ fontSize: 13 }}>Rows per page:</span>
+                    <select
+                      className="input"
+                      value={rowsPerPage}
+                      onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
+                      style={{ width: 64, padding: "4px 6px", fontSize: 13 }}
+                    >
+                      {ROWS_PER_PAGE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button className="btn" style={{ padding: "4px 8px", fontSize: 13 }} disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        className={`btn${p === page ? " btnPrimary" : ""}`}
+                        style={{ padding: "4px 10px", fontSize: 13, minWidth: 32 }}
+                        onClick={() => setPage(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button className="btn" style={{ padding: "4px 8px", fontSize: 13 }} disabled={page >= totalPages} onClick={() => setPage(page + 1)}>›</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
