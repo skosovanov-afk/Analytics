@@ -51,6 +51,11 @@ type ChannelOption = {
   name: string;
 };
 
+type OwnerOption = {
+  id: string;
+  name: string;
+};
+
 type SelectOption = {
   value: string;
   label: string;
@@ -85,6 +90,7 @@ type HypothesisRow = {
   decision: string | null;
   status: string;
   priority: number;
+  owner_id: string | null;
   notes: string | null;
   updated_at: string;
   created_at: string;
@@ -119,6 +125,7 @@ type RowDraft = {
   decision: string;
   status: string;
   priority: string;
+  owner_id: string;
   notes: string;
 };
 
@@ -234,6 +241,7 @@ function emptyDraft(): RowDraft {
     decision: "",
     status: "draft",
     priority: "medium",
+    owner_id: "",
     notes: ""
   };
 }
@@ -399,6 +407,7 @@ function toDraft(
     decision: row.decision ?? "",
     status: row.status === "new" ? "draft" : row.status === "in_test" ? "in_progress" : (row.status ?? "draft"),
     priority: priorityScoreToValue(row.priority),
+    owner_id: row.owner_id ?? "",
     notes: meta.user_notes
   };
 }
@@ -650,6 +659,7 @@ export default function HypothesesRegistryPage() {
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfileOption[]>([]);
   const [channels, setChannels] = useState<ChannelOption[]>([]);
   const [tals, setTals] = useState<TalOption[]>([]);
+  const [owners, setOwners] = useState<OwnerOption[]>([]);
   const [matrixHypothesisId, setMatrixHypothesisId] = useState("");
   const [matrixRows, setMatrixRows] = useState<MatrixLibraryRow[]>([]);
   const [rows, setRows] = useState<HypothesisRow[]>([]);
@@ -996,13 +1006,14 @@ export default function HypothesesRegistryPage() {
 
   async function loadTaxonomy() {
     if (!supabase) return;
-    const [verticalRes, subverticalRes, scaleRes, companyProfileRes, channelRes, talRes] = await Promise.all([
+    const [verticalRes, subverticalRes, scaleRes, companyProfileRes, channelRes, talRes, ownerRes] = await Promise.all([
       supabase.from("sales_verticals").select("id,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(500),
       supabase.from("sales_subverticals").select("id,vertical_id,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(1000),
       supabase.from("sales_company_scales").select("id,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(500),
       supabase.from("sales_icp_company_profiles").select("id,vertical_name,sub_vertical,region,size_bucket,tech_stack,notes").order("vertical_name", { ascending: true }).order("sub_vertical", { ascending: true }).limit(500),
       supabase.from("sales_channels").select("slug,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(200),
-      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings").order("name", { ascending: true }).limit(500)
+      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings").order("name", { ascending: true }).limit(500),
+      supabase.from("hypothesis_owners").select("id,name").order("name", { ascending: true }).limit(50)
     ]);
     if (!verticalRes.error) setVerticals((verticalRes.data ?? []) as VerticalOption[]);
     if (!subverticalRes.error) setSubverticals((subverticalRes.data ?? []) as SubverticalOption[]);
@@ -1010,6 +1021,7 @@ export default function HypothesesRegistryPage() {
     if (!companyProfileRes.error) setCompanyProfiles((companyProfileRes.data ?? []) as CompanyProfileOption[]);
     if (!channelRes.error) setChannels((channelRes.data ?? []) as ChannelOption[]);
     if (!talRes.error) setTals((talRes.data ?? []) as TalOption[]);
+    if (!ownerRes.error) setOwners((ownerRes.data ?? []) as OwnerOption[]);
   }
 
   async function loadRows(registryId: string) {
@@ -1045,6 +1057,7 @@ export default function HypothesesRegistryPage() {
           decision,
           status,
           priority,
+          owner_id,
           notes,
           updated_at,
           created_at,
@@ -1576,6 +1589,7 @@ export default function HypothesesRegistryPage() {
         decision: cleanText(rowDraft.decision),
         status: rowDraft.status || "draft",
         priority: priorityValueToScore(rowDraft.priority),
+        owner_id: rowDraft.owner_id || null,
         notes: serializeHypothesisMeta({
           ...rowDraft,
           job_to_be_done: snapshot.job_to_be_done,
@@ -1722,6 +1736,18 @@ export default function HypothesesRegistryPage() {
                 options={decisionOptions}
                 placeholder="—"
                 onChange={(value) => updateDraft((draft) => ({ ...draft, decision: value }))}
+                searchable={false}
+                disabled={editorBusy}
+              />
+            </div>
+            <div style={{ gridColumn: "span 2" }}>
+              <label className="muted" style={{ fontSize: 12 }}>Owner</label>
+              <SelectPopover
+                value={rowDraft.owner_id}
+                displayValue={owners.find((o) => o.id === rowDraft.owner_id)?.name}
+                options={[{ value: "", label: "—" }, ...owners.map((o) => ({ value: o.id, label: o.name }))]}
+                placeholder="—"
+                onChange={(value) => updateDraft((draft) => ({ ...draft, owner_id: value }))}
                 searchable={false}
                 disabled={editorBusy}
               />
@@ -2093,6 +2119,7 @@ export default function HypothesesRegistryPage() {
                   <thead>
                     <tr>
                       <th>Title</th>
+                      <th>Owner</th>
                       <th>Role</th>
                       <th>Vertical</th>
                       <th>Company Size</th>
@@ -2118,6 +2145,7 @@ export default function HypothesesRegistryPage() {
                         <Fragment key={row.id}>
                           <tr className={isActive ? "hypRowActive" : undefined} onClick={() => openEditorForRow(row.id)} style={{ cursor: rowActionsBusy ? "progress" : "pointer" }}>
                             <td><div className="hypRowTitle">{preview(row.title || (live?.vp_point ?? row.vp_point), 56)}</div></td>
+                            <td>{owners.find(o => o.id === row.owner_id)?.name ?? "—"}</td>
                             <td>{roleDisplay(row, roles.length)}</td>
                             <td>{preview(verticalNameById.get(row.vertical_id ?? "") ?? row.vertical_name, 40)}</td>
                             <td>{preview(row.company_scale ?? companyScaleNameById.get(row.company_scale_id ?? ""), 40)}</td>
@@ -2140,7 +2168,7 @@ export default function HypothesesRegistryPage() {
                     })}
                     {!filteredRows.length ? (
                       <tr>
-                        <td colSpan={17} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
+                        <td colSpan={18} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
                       </tr>
                     ) : null}
                   </tbody>
