@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
+import { DonutChart, type DonutSlice } from "../components/DonutChart";
 import { FadeIn } from "../components/FadeIn";
 import { SpotlightCard } from "../components/SpotlightCard";
 import { getSupabase } from "../lib/supabase";
@@ -925,6 +926,25 @@ export default function ExpandiPage() {
     return totals;
   }, [chartCampaignBuckets]);
 
+  // Donut chart slices by campaign
+  const activityDonutSlices = useMemo((): DonutSlice[] => {
+    const byCampaign = new Map<string, number>();
+    for (const [label, wm] of chartCampaignBuckets) {
+      const total = Array.from(wm.values()).reduce((s, b) => s + n(b[activityMetric]), 0);
+      if (total > 0) byCampaign.set(label, total);
+    }
+    const sorted = Array.from(byCampaign.entries()).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 8);
+    const otherTotal = sorted.slice(8).reduce((s, [, v]) => s + v, 0);
+    const slices: DonutSlice[] = top.map(([name, value], i) => ({
+      label: name.length > 30 ? name.slice(0, 28) + "…" : name,
+      value,
+      color: COLORS[i % COLORS.length],
+    }));
+    if (otherTotal > 0) slices.push({ label: "Other", value: otherTotal, color: "#64748b" });
+    return slices;
+  }, [chartCampaignBuckets, activityMetric]);
+
   const activityChartSeries = useMemo(() => {
     const topSeries = Array.from(chartCampaignBuckets.entries())
       .map(([label, wm]) => ({
@@ -1205,8 +1225,8 @@ export default function ExpandiPage() {
           <div className="card">
             <div className="cardHeader">
               <div>
-                <div className="cardTitle">{bucketTitle(chartBucket).replace("trend", "activity")}</div>
-                <div className="cardDesc">{chartBuckets.length} {bucketUnit(chartBucket)} · total + top campaigns</div>
+                <div className="cardTitle">By campaign</div>
+                <div className="cardDesc">Top campaigns breakdown</div>
               </div>
               <div className="btnRow">
                 {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
@@ -1220,54 +1240,13 @@ export default function ExpandiPage() {
                 ))}
               </div>
             </div>
-            <div className="cardBody">
-              {!chartBuckets.length
-                ? <div className="muted2">No data for selected period.</div>
-                : <LineChart
-                    buckets={chartBuckets}
-                    bucket={chartBucket}
-                    series={activityChartSeries}
-                    animationKey={activityChartAnimationKey}
-                    tooltipTitle={METRIC_LABELS[activityMetric]}
-                  />
-              }
-            </div>
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={160} style={{ gridColumn: "span 12" }}>
-          <div className="card">
-            <div className="cardHeader">
-              <div>
-                <div className="cardTitle">{bucketTitle(chartBucket).replace("trend", "conversion")}</div>
-                <div className="cardDesc">{chartBuckets.length} {bucketUnit(chartBucket)} · total + top campaigns · hidden below {MIN_CONVERSION_DENOMINATOR} denominator</div>
-              </div>
-              <div className="btnRow">
-                {(Object.keys(CONVERSION_METRIC_LABELS) as ConversionMetric[]).map((m) => (
-                  <button
-                    key={m}
-                    className={`btn${conversionMetric === m ? " btnPrimary" : ""}`}
-                    onClick={() => setConversionMetric(m)}
-                  >
-                    {CONVERSION_METRIC_LABELS[m]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="cardBody">
-              {!chartBuckets.length
-                ? <div className="muted2">No data for selected period.</div>
-                : !conversionChartSeries.length
-                ? <div className="muted2">Not enough denominator data for conversion trend.</div>
-                : <LineChart
-                    buckets={chartBuckets}
-                    bucket={chartBucket}
-                    series={conversionChartSeries}
-                    animationKey={conversionChartAnimationKey}
-                    formatYTick={formatPercentTick}
-                    tooltipTitle={CONVERSION_METRIC_LABELS[conversionMetric]}
-                  />
-              }
+            <div className="cardBody" style={{ padding: "24px 32px" }}>
+              <DonutChart
+                slices={activityDonutSlices}
+                title={METRIC_LABELS[activityMetric]}
+                size={210}
+                thickness={38}
+              />
             </div>
           </div>
         </FadeIn>

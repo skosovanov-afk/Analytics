@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
+import { DonutChart, type DonutSlice } from "../components/DonutChart";
 import { FadeIn } from "../components/FadeIn";
 import { SpotlightCard } from "../components/SpotlightCard";
 import { getSupabase } from "../lib/supabase";
@@ -663,6 +664,25 @@ export default function SmartleadPage() {
     }));
   }, [filteredRows, chartBuckets, chartBucket, chartMetric]);
 
+  // Donut chart slices by campaign (top 8)
+  const donutSlices = useMemo((): DonutSlice[] => {
+    const byCampaign = new Map<string, number>();
+    for (const r of filteredRows) {
+      const v = n(r[chartMetric]);
+      byCampaign.set(r.campaign_name, (byCampaign.get(r.campaign_name) ?? 0) + v);
+    }
+    const sorted = Array.from(byCampaign.entries()).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 8);
+    const otherTotal = sorted.slice(8).reduce((s, [, v]) => s + v, 0);
+    const slices: DonutSlice[] = top.map(([name, value], i) => ({
+      label: name.length > 30 ? name.slice(0, 28) + "…" : name,
+      value,
+      color: COLORS[i % COLORS.length],
+    }));
+    if (otherTotal > 0) slices.push({ label: "Other", value: otherTotal, color: "#64748b" });
+    return slices;
+  }, [filteredRows, chartMetric]);
+
   // By-campaign table
   const campaignRows = useMemo(() => {
     const map = new Map<string, { sent: number; reply: number; booked: number; held: number }>();
@@ -869,13 +889,13 @@ export default function SmartleadPage() {
           </div>
         </FadeIn>
 
-        {/* ── Trend chart ──────────────────────────────────────────────────── */}
+        {/* ── Campaign breakdown chart ─────────────────────────────────────── */}
         <FadeIn delay={120} style={{ gridColumn: "span 12" }}>
           <div className="card">
             <div className="cardHeader">
               <div>
-                <div className="cardTitle">{bucketTitle(chartBucket)}</div>
-                <div className="cardDesc">{chartBuckets.length} {bucketUnit(chartBucket)} · top campaigns</div>
+                <div className="cardTitle">By campaign</div>
+                <div className="cardDesc">Top campaigns breakdown</div>
               </div>
               <div className="btnRow">
                 <button
@@ -892,11 +912,13 @@ export default function SmartleadPage() {
                 </button>
               </div>
             </div>
-            <div className="cardBody">
-              {!chartBuckets.length
-                ? <div className="muted2">No data for selected period.</div>
-                : <LineChart buckets={chartBuckets} bucket={chartBucket} series={chartSeries} />
-              }
+            <div className="cardBody" style={{ padding: "24px 32px" }}>
+              <DonutChart
+                slices={donutSlices}
+                title={chartMetric === "sent_count" ? "sent" : "replies"}
+                size={210}
+                thickness={38}
+              />
             </div>
           </div>
         </FadeIn>
