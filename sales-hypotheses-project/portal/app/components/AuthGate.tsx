@@ -65,12 +65,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
-    const err = validateEmail();
-    if (err) { setStatus(err); return; }
+    const trimmed = inputEmail.trim().toLowerCase();
+    if (!trimmed) { setStatus("Enter your email"); return; }
     if (!inputPassword) { setStatus("Enter your password"); return; }
     setStatus("Signing in...");
     const { error } = await supabase.auth.signInWithPassword({
-      email: inputEmail.trim().toLowerCase(),
+      email: trimmed,
       password: inputPassword,
     });
     if (error) { setStatus(error.message); }
