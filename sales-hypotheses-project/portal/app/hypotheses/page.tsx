@@ -2093,11 +2093,6 @@ export default function HypothesesRegistryPage() {
                       <th>Company Size</th>
                       <th>TAL</th>
                       <th>Channels</th>
-                      <th>Decision Context</th>
-                      <th>VP Point</th>
-                      <th>Pain</th>
-                      <th>Expected Signal</th>
-                      <th>Disqualifiers</th>
                       <th>Booked</th>
                       <th>Held</th>
                       <th>Priority</th>
@@ -2119,11 +2114,6 @@ export default function HypothesesRegistryPage() {
                             <td>{preview(row.company_scale ?? companyScaleNameById.get(row.company_scale_id ?? ""), 40)}</td>
                             <td>{preview(talNameById.get(row.tal_id ?? ""), 40)}</td>
                             <td>{row.tal_id ? deriveTalChannels(talById.get(row.tal_id)).join(", ") || "—" : parseList(row.channel).map((slug) => channelNameBySlug.get(slug) ?? slug).join(", ") || "—"}</td>
-                            <td>{preview(live?.decision_context ?? row.decision_context, 72)}</td>
-                            <td><div className="hypRowTitle">{preview(live?.vp_point ?? row.vp_point, 84)}</div></td>
-                            <td>{preview(live?.pain ?? row.pain)}</td>
-                            <td>{preview(row.expected_signal)}</td>
-                            <td>{preview(row.disqualifiers)}</td>
                             <td className="mono">{row.tal_id ? (talById.get(row.tal_id)?.total_meetings ?? 0) : "—"}</td>
                             <td className="mono">{row.tal_id ? (talById.get(row.tal_id)?.total_held_meetings ?? 0) : "—"}</td>
                             <td>{priorityValueToLabel(priorityScoreToValue(row.priority))}</td>
@@ -2136,7 +2126,7 @@ export default function HypothesesRegistryPage() {
                     })}
                     {!filteredRows.length ? (
                       <tr>
-                        <td colSpan={18} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
+                        <td colSpan={13} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
                       </tr>
                     ) : null}
                   </tbody>
