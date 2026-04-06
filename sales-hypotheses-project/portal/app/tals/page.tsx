@@ -93,6 +93,10 @@ export default function TalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
   const [unlinked, setUnlinked] = useState<UnlinkedCampaign[]>([]);
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const [unlinkedLoading, setUnlinkedLoading] = useState(false);
@@ -134,6 +138,21 @@ export default function TalsPage() {
     load();
   }, [supabase]);
 
+  const filteredTals = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return tals;
+    return tals.filter((t) =>
+      t.name.toLowerCase().includes(q) ||
+      (t.criteria ?? "").toLowerCase().includes(q)
+    );
+  }, [tals, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTals.length / PAGE_SIZE));
+  const pagedTals = filteredTals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset page when search changes
+  useEffect(() => { setPage(1); }, [search]);
+
   return (
     <div className="page">
       <AppTopbar title="TAL" subtitle="Territory Account Lists" />
@@ -146,7 +165,16 @@ export default function TalsPage() {
               Группы кампаний по сегментам. Аналитика агрегируется по Email, LinkedIn, App и Telegram.
             </p>
           </div>
-          <Link href="/tals/new" className="btn btnPrimary">+ New TAL</Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              className="input"
+              placeholder="Search TAL..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 220 }}
+            />
+            <Link href="/tals/new" className="btn btnPrimary">+ New TAL</Link>
+          </div>
         </div>
 
         {loading && <p className="muted2">Loading...</p>}
@@ -163,7 +191,10 @@ export default function TalsPage() {
 
         {tals.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {tals.map((tal) => (
+            {!loading && search && filteredTals.length === 0 && (
+              <p className="muted2">No TALs match "{search}"</p>
+            )}
+            {pagedTals.map((tal) => (
               <Link
                 key={tal.id}
                 href={`/tals/${tal.id}`}
@@ -256,6 +287,22 @@ export default function TalsPage() {
                 </div>
               </Link>
             ))}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
+                <span className="muted2" style={{ fontSize: 13 }}>
+                  {page} / {totalPages} ({filteredTals.length} TALs)
+                </span>
+                <button className="btn" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+              </div>
+            )}
+            {totalPages <= 1 && filteredTals.length > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <span className="muted2" style={{ fontSize: 12 }}>{filteredTals.length} TALs</span>
+              </div>
+            )}
           </div>
         )}
 
