@@ -1982,38 +1982,6 @@ export default function HypothesesRegistryPage() {
                       </span>
                     </div>
                   </div>
-                  <div style={{ gridColumn: "span 12" }}>
-                    <label className="muted" style={{ fontSize: 12 }}>Decision context</label>
-                    <div className="statField" style={{ alignItems: "flex-start", minHeight: 72 }}>
-                      <span className="statValue" style={{ fontSize: 14, whiteSpace: "normal", lineHeight: 1.45 }}>
-                        {liveDraftSnapshot.decision_context || "—"}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ gridColumn: "span 6" }}>
-                    <label className="muted" style={{ fontSize: 12 }}>Pain</label>
-                    <div className="statField" style={{ alignItems: "flex-start", minHeight: 72 }}>
-                      <span className="statValue" style={{ fontSize: 14, whiteSpace: "normal", lineHeight: 1.45 }}>
-                        {liveDraftSnapshot.pain || "—"}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ gridColumn: "span 6" }}>
-                    <label className="muted" style={{ fontSize: 12 }}>Job to be done</label>
-                    <div className="statField" style={{ alignItems: "flex-start", minHeight: 72 }}>
-                      <span className="statValue" style={{ fontSize: 14, whiteSpace: "normal", lineHeight: 1.45 }}>
-                        {liveDraftSnapshot.job_to_be_done || "—"}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ gridColumn: "span 6" }}>
-                    <label className="muted" style={{ fontSize: 12 }}>Outcome / metric</label>
-                    <div className="statField" style={{ alignItems: "flex-start", minHeight: 72 }}>
-                      <span className="statValue" style={{ fontSize: 14, whiteSpace: "normal", lineHeight: 1.45 }}>
-                        {liveDraftSnapshot.outcome_metric || "—"}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
