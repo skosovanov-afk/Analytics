@@ -445,7 +445,7 @@ export async function POST(req: Request) {
         // campaign id: deal property (preferred) or env default
         const dealCampaignRaw = String((props as any)?.[dealCampaignProp] ?? "").trim();
         const dealCampaignId = dealCampaignRaw ? Number(dealCampaignRaw) : NaN;
-        const campaignId = Number.isFinite(dealCampaignId) ? dealCampaignId : defaultCampaignId;
+        const campaignId = Number.isFinite(dealCampaignId) ? dealCampaignId : (Number.isFinite(defaultCampaignId) ? defaultCampaignId : NaN);
         if (!Number.isFinite(campaignId)) {
           results.enrolled.skipped_no_campaign++;
           continue;

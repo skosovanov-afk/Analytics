@@ -26,10 +26,11 @@ def reset_supabase_client() -> None:
     _client = None
 
 
-def insert_row(table: str, record: dict[str, Any]) -> list[dict[str, Any]]:
+def insert_row(table: str, record: dict[str, Any]) -> dict[str, Any]:
     client = get_supabase_client()
     response = client.table(table).insert(record).execute()
-    return response.data or []
+    rows = response.data or []
+    return rows[0] if rows else {}
 
 
 def select_rows(

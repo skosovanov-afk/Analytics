@@ -56,15 +56,23 @@ export async function postgrestJson(
 ) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const url = `${supabaseUrl}/rest/v1/${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      ...h,
-      ...(body != null ? { "Content-Type": "application/json" } : {}),
-      ...(extraHeaders ?? {})
-    },
-    body: body != null ? JSON.stringify(body) : undefined
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        ...h,
+        ...(body != null ? { "Content-Type": "application/json" } : {}),
+        ...(extraHeaders ?? {})
+      },
+      body: body != null ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
   let json: any = null;
   try {

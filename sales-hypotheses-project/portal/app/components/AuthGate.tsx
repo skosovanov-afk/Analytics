@@ -44,7 +44,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   function validateEmail(): string | null {
     const trimmed = inputEmail.trim().toLowerCase();
     if (!trimmed) return "Enter your email";
-    if (allowedDomain && !trimmed.endsWith(allowedDomain)) return `Only ${allowedDomain} emails are allowed`;
+    if (allowedDomain) {
+      const domain = allowedDomain.startsWith("@") ? allowedDomain : `@${allowedDomain}`;
+      const atIndex = trimmed.lastIndexOf("@");
+      if (atIndex < 1 || trimmed.slice(atIndex) !== domain) return `Only ${allowedDomain} emails are allowed`;
+    }
     return null;
   }
 

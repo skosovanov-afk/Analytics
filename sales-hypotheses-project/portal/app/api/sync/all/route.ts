@@ -5,12 +5,7 @@ function jsonError(status: number, message: string) {
 }
 
 function rid() {
-  try {
-    const crypto = require("crypto");
-    return typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-  } catch {
-    return `${Date.now()}-${Math.random()}`;
-  }
+  return crypto.randomUUID();
 }
 
 function trunc(s: any, n: number) {

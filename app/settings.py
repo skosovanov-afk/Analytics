@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -20,11 +21,11 @@ def get_secret_key() -> str:
     key = os.environ.get("PRODUCT_SECRET_KEY", "")
     if not key:
         warnings.warn(
-            "PRODUCT_SECRET_KEY not set - using insecure default. "
+            "PRODUCT_SECRET_KEY not set - generating random key. "
             "Set PRODUCT_SECRET_KEY env var in production!",
             stacklevel=2,
         )
-        return "dev-secret-key-change-me"
+        return secrets.token_urlsafe(32)
     return key
 
 

@@ -97,7 +97,14 @@ function toList(payload: unknown): Json[] {
 async function slGet(path: string): Promise<unknown> {
   const sep = path.includes("?") ? "&" : "?";
   const url = `${SMARTLEAD_BASE_URL}${path}${sep}api_key=${encodeURIComponent(SMARTLEAD_API_KEY)}`;
-  const res = await fetch(url, { headers: { accept: "application/json" } });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { accept: "application/json" }, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`SmartLead GET failed (${res.status}) ${path}: ${text.slice(0, 500)}`);
