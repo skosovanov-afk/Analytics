@@ -55,8 +55,8 @@ export function DonutChart({
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
       {/* Donut */}
-      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <div style={{ position: "relative", width: size + 12, height: size + 12, flexShrink: 0 }}>
+        <svg viewBox={`-6 -6 ${size + 12} ${size + 12}`} width={size + 12} height={size + 12} style={{ overflow: "visible" }}>
           {/* Background circle */}
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={thickness} />
           {/* Slices */}
