@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppTopbar } from "../components/AppTopbar";
 import { CountUp } from "../components/CountUp";
+import { DonutChart, type DonutSlice } from "../components/DonutChart";
 import { FadeIn } from "../components/FadeIn";
 import { SpotlightCard } from "../components/SpotlightCard";
 import { getSupabase } from "../lib/supabase";
@@ -175,6 +176,26 @@ export default function AppAnalyticsPage() {
     };
   }, [campaignRows]);
 
+  const [donutMetric, setDonutMetric] = useState<"touches" | "replies">("touches");
+  const DONUT_COLORS = ["#86efac", "#22c55e", "#a78bfa", "#7dd3fc", "#fca5a5", "#facc15", "#fb923c", "#f9a8d4"];
+
+  const donutSlices = useMemo((): DonutSlice[] => {
+    const sorted = [...campaignRows].sort((a, b) =>
+      donutMetric === "touches" ? b.total_touches - a.total_touches : b.replies - a.replies
+    );
+    const top = sorted.slice(0, 8);
+    const otherTotal = sorted.slice(8).reduce((s, r) => s + (donutMetric === "touches" ? r.total_touches : r.replies), 0);
+    const slices: DonutSlice[] = top
+      .filter(r => (donutMetric === "touches" ? r.total_touches : r.replies) > 0)
+      .map((r, i) => ({
+        label: r.campaign_name.length > 30 ? r.campaign_name.slice(0, 28) + "…" : r.campaign_name,
+        value: donutMetric === "touches" ? r.total_touches : r.replies,
+        color: DONUT_COLORS[i % DONUT_COLORS.length],
+      }));
+    if (otherTotal > 0) slices.push({ label: "Other", value: otherTotal, color: "#64748b" });
+    return slices;
+  }, [campaignRows, donutMetric]);
+
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else { setSortKey(key); setSortDir("desc"); }
@@ -247,6 +268,25 @@ export default function AppAnalyticsPage() {
                 </div>
               </SpotlightCard>
             ))}
+          </div>
+        </FadeIn>
+
+        {/* ── Campaign donut ─────────────────────────────────────────────── */}
+        <FadeIn delay={100} style={{ gridColumn: "span 12" }}>
+          <div className="card">
+            <div className="cardHeader">
+              <div>
+                <div className="cardTitle">By campaign</div>
+                <div className="cardDesc">Top campaigns breakdown</div>
+              </div>
+              <div className="btnRow">
+                <button className={`btn${donutMetric === "touches" ? " btnPrimary" : ""}`} onClick={() => setDonutMetric("touches")}>Touches</button>
+                <button className={`btn${donutMetric === "replies" ? " btnPrimary" : ""}`} onClick={() => setDonutMetric("replies")}>Replies</button>
+              </div>
+            </div>
+            <div className="cardBody" style={{ padding: "24px 32px" }}>
+              <DonutChart slices={donutSlices} title={donutMetric} size={210} thickness={38} />
+            </div>
           </div>
         </FadeIn>
 
