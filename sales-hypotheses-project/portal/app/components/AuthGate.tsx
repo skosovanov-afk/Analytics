@@ -22,6 +22,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setEmail(session?.user?.email ?? null);
       setChecking(false);
+    }).catch(() => {
+      setChecking(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setEmail(session?.user?.email ?? null);
