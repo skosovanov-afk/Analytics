@@ -170,7 +170,7 @@ async function fetchManualEmailRows(
       .from("manual_stats")
       .select("record_date,campaign_name,metric_name,value")
       .eq("channel", "email")
-      .in("metric_name", ["sent_count", "reply_count", "booked_meetings", "held_meetings"])
+      .in("metric_name", ["sent_count", "reply_count", "booked_meetings", "held_meetings", "qualified_leads"])
       .order("record_date", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
@@ -580,7 +580,7 @@ export default function SmartleadPage() {
       replySmartlead += n(r.reply_count);
     }
 
-    let sentManual = 0, replyManual = 0, booked = 0, held = 0;
+    let sentManual = 0, replyManual = 0, booked = 0, held = 0, ql = 0;
     for (const r of filteredManualRows) {
       const value = n(r.value);
       if (r.metric_name === "sent_count") sentManual += value;
@@ -590,6 +590,7 @@ export default function SmartleadPage() {
       else if ((r.campaign_name ?? "").trim()) continue;
       else if (r.metric_name === "booked_meetings") booked += value;
       else if (r.metric_name === "held_meetings") held += value;
+      else if (r.metric_name === "qualified_leads") ql += value;
     }
 
     const sent = sentSmartlead > 0 ? sentSmartlead : sentManual;
@@ -599,6 +600,7 @@ export default function SmartleadPage() {
       reply,
       booked_meetings: booked,
       held_meetings: held,
+      qualified_leads: ql,
       cr_booked: reply > 0 ? (booked / reply) * 100 : 0,
       cr_held: booked > 0 ? (held / booked) * 100 : 0,
     };
@@ -685,9 +687,9 @@ export default function SmartleadPage() {
 
   // By-campaign table
   const campaignRows = useMemo(() => {
-    const map = new Map<string, { sent: number; reply: number; booked: number; held: number }>();
+    const map = new Map<string, { sent: number; reply: number; booked: number; held: number; ql: number }>();
     for (const r of filteredRows) {
-      if (!map.has(r.campaign_name)) map.set(r.campaign_name, { sent: 0, reply: 0, booked: 0, held: 0 });
+      if (!map.has(r.campaign_name)) map.set(r.campaign_name, { sent: 0, reply: 0, booked: 0, held: 0, ql: 0 });
       const d = map.get(r.campaign_name)!;
       d.sent += n(r.sent_count);
       d.reply += n(r.reply_count);
@@ -695,10 +697,11 @@ export default function SmartleadPage() {
     for (const r of filteredManualRows) {
       const name = (r.campaign_name ?? "").trim();
       if (!name) continue;
-      if (!map.has(name)) map.set(name, { sent: 0, reply: 0, booked: 0, held: 0 });
+      if (!map.has(name)) map.set(name, { sent: 0, reply: 0, booked: 0, held: 0, ql: 0 });
       const d = map.get(name)!;
       if (r.metric_name === "booked_meetings") d.booked += n(r.value);
       else if (r.metric_name === "held_meetings") d.held += n(r.value);
+      else if (r.metric_name === "qualified_leads") d.ql += n(r.value);
     }
     const arr = Array.from(map.entries()).map(([name, d]) => ({
       name,
@@ -707,6 +710,7 @@ export default function SmartleadPage() {
       reply_rate: d.sent > 0 ? (d.reply / d.sent) * 100 : 0,
       booked_meetings: d.booked,
       held_meetings: d.held,
+      qualified_leads: d.ql,
       cr_booked: d.reply > 0 ? (d.booked / d.reply) * 100 : null,
       cr_held: d.booked > 0 ? (d.held / d.booked) * 100 : null,
     }));
@@ -861,6 +865,7 @@ export default function SmartleadPage() {
               },
               { label: "Booked meetings", numVal: totals.booked_meetings, strVal: null, sub: pctValueStr(totals.cr_booked) + " of replies" },
               { label: "Held meetings", numVal: totals.held_meetings, strVal: null, sub: pctValueStr(totals.cr_held) + " of booked" },
+              { label: "Qualified Leads", numVal: totals.qualified_leads, strVal: null, sub: null },
               { label: "Reply rate", numVal: null, strVal: pctStr(totals.reply, totals.sent), sub: "replies / sent" },
               { label: "CR → Booked", numVal: null, strVal: pctValueStr(totals.cr_booked), sub: "booked / replies" },
               { label: "CR → Held", numVal: null, strVal: pctValueStr(totals.cr_held), sub: "held / booked" },
@@ -982,6 +987,9 @@ export default function SmartleadPage() {
                     <th style={{ cursor: "pointer" }} onClick={() => toggleSort("held_meetings")}>
                       Held <SortIcon col="held_meetings" sortKey={sortKey} sortDir={sortDir} />
                     </th>
+                    <th style={{ cursor: "pointer" }} onClick={() => toggleSort("qualified_leads")}>
+                      QL <SortIcon col="qualified_leads" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
                     <th style={{ cursor: "pointer" }} onClick={() => toggleSort("reply_rate")}>
                       Reply rate <SortIcon col="reply_rate" sortKey={sortKey} sortDir={sortDir} />
                     </th>
@@ -997,6 +1005,7 @@ export default function SmartleadPage() {
                       <td className="mono">{r.reply}</td>
                       <td className="mono">{r.booked_meetings || "—"}</td>
                       <td className="mono">{r.held_meetings || "—"}</td>
+                      <td className="mono">{r.qualified_leads || "—"}</td>
                       <td className="mono">{pctStr(r.reply, r.sent)}</td>
                       <td className="mono">{r.cr_booked != null ? pctValueStr(r.cr_booked) : "—"}</td>
                       <td className="mono">{r.cr_held != null ? pctValueStr(r.cr_held) : "—"}</td>

@@ -25,6 +25,7 @@ type CampaignRow = {
   replies: number;
   booked_meetings: number;
   held_meetings: number;
+  qualified_leads: number;
   cr_reply: number | null;
   cr_booked: number | null;
   cr_held: number | null;
@@ -34,7 +35,7 @@ type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 1000;
 
-const METRICS = ["total_touches", "replies", "booked_meetings", "held_meetings"] as const;
+const METRICS = ["total_touches", "replies", "booked_meetings", "held_meetings", "qualified_leads"] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,15 +130,16 @@ export default function TelegramAnalyticsPage() {
   }, [rows, dateRange]);
 
   const campaignRows = useMemo((): CampaignRow[] => {
-    const map = new Map<string, { touches: number; replies: number; booked: number; held: number }>();
+    const map = new Map<string, { touches: number; replies: number; booked: number; held: number; ql: number }>();
     for (const row of filteredRows) {
       const campaign = row.campaign_name?.trim() || row.account_name?.trim() || "Unspecified";
-      if (!map.has(campaign)) map.set(campaign, { touches: 0, replies: 0, booked: 0, held: 0 });
+      if (!map.has(campaign)) map.set(campaign, { touches: 0, replies: 0, booked: 0, held: 0, ql: 0 });
       const d = map.get(campaign)!;
       if (row.metric_name === "total_touches") d.touches += n(row.value);
       if (row.metric_name === "replies") d.replies += n(row.value);
       if (row.metric_name === "booked_meetings") d.booked += n(row.value);
       if (row.metric_name === "held_meetings") d.held += n(row.value);
+      if (row.metric_name === "qualified_leads") d.ql += n(row.value);
     }
     return Array.from(map.entries())
       .map(([campaign_name, d]) => ({
@@ -146,6 +148,7 @@ export default function TelegramAnalyticsPage() {
         replies: d.replies,
         booked_meetings: d.booked,
         held_meetings: d.held,
+        qualified_leads: d.ql,
         cr_reply: d.touches > 0 ? (d.replies / d.touches) * 100 : null,
         cr_booked: d.replies > 0 ? (d.booked / d.replies) * 100 : null,
         cr_held: d.booked > 0 ? (d.held / d.booked) * 100 : null,
@@ -158,18 +161,20 @@ export default function TelegramAnalyticsPage() {
   }, [filteredRows, sortKey, sortDir]);
 
   const totals = useMemo(() => {
-    let touches = 0, replies = 0, booked = 0, held = 0;
+    let touches = 0, replies = 0, booked = 0, held = 0, ql = 0;
     for (const r of campaignRows) {
       touches += r.total_touches;
       replies += r.replies;
       booked += r.booked_meetings;
       held += r.held_meetings;
+      ql += r.qualified_leads;
     }
     return {
       total_touches: touches,
       replies,
       booked_meetings: booked,
       held_meetings: held,
+      qualified_leads: ql,
       cr_reply: touches > 0 ? (replies / touches) * 100 : null,
       cr_booked: replies > 0 ? (booked / replies) * 100 : null,
       cr_held: booked > 0 ? (held / booked) * 100 : null,
@@ -248,6 +253,7 @@ export default function TelegramAnalyticsPage() {
               { label: "Replies", val: totals.replies, isNum: true, sub: `${pctStr(totals.cr_reply)} of touches` },
               { label: "Booked meetings", val: totals.booked_meetings, isNum: true, sub: `${pctStr(totals.cr_booked)} of replies` },
               { label: "Held meetings", val: totals.held_meetings, isNum: true, sub: `${pctStr(totals.cr_held)} of booked` },
+              { label: "Qualified Leads", val: totals.qualified_leads, isNum: true, sub: null },
               { label: "CR → Reply", val: pctStr(totals.cr_reply), isNum: false, sub: "replies / touches" },
               { label: "CR → Booked", val: pctStr(totals.cr_booked), isNum: false, sub: "booked / replies" },
               { label: "CR → Held", val: pctStr(totals.cr_held), isNum: false, sub: "held / booked" },
@@ -316,6 +322,9 @@ export default function TelegramAnalyticsPage() {
                     <th style={{ cursor: "pointer" }} onClick={() => toggleSort("held_meetings")}>
                       Held <SortIcon col="held_meetings" sortKey={sortKey} sortDir={sortDir} />
                     </th>
+                    <th style={{ cursor: "pointer" }} onClick={() => toggleSort("qualified_leads")}>
+                      QL <SortIcon col="qualified_leads" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
                     <th>CR Reply</th>
                     <th>CR Booked</th>
                     <th>CR Held</th>
@@ -329,13 +338,14 @@ export default function TelegramAnalyticsPage() {
                       <td className="mono">{r.replies}</td>
                       <td className="mono">{r.booked_meetings}</td>
                       <td className="mono">{r.held_meetings}</td>
+                      <td className="mono">{r.qualified_leads}</td>
                       <td className="mono">{pctStr(r.cr_reply)}</td>
                       <td className="mono">{pctStr(r.cr_booked)}</td>
                       <td className="mono">{pctStr(r.cr_held)}</td>
                     </tr>
                   ))}
                   {!campaignRows.length && (
-                    <tr><td colSpan={8} className="muted2">{loading ? "Loading…" : "No data for selected period."}</td></tr>
+                    <tr><td colSpan={9} className="muted2">{loading ? "Loading…" : "No data for selected period."}</td></tr>
                   )}
                 </tbody>
               </table>

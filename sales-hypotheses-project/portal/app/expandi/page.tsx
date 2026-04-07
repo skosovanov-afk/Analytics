@@ -36,6 +36,7 @@ type AlltimeRow = {
   replies: number;
   booked_meetings: number;
   held_meetings: number;
+  qualified_leads: number;
   cr_to_accept_pct: number | null;
   cr_to_reply_pct: number | null;
 };
@@ -62,6 +63,7 @@ type CampaignStat = {
   replies: number;
   booked_meetings: number;
   held_meetings: number;
+  qualified_leads: number;
   cr_to_accept_pct: number | null;
   cr_to_reply_pct: number | null;
 };
@@ -263,6 +265,7 @@ function mapLinkedinAlltimeV2Row(row: Record<string, unknown>): AlltimeRow {
     replies,
     booked_meetings: n(row.booked_meetings),
     held_meetings: n(row.held_meetings),
+    qualified_leads: n(row.qualified_leads),
     cr_to_accept_pct: connectionReq > 0 ? round2(Math.min((accepted / connectionReq) * 100, 100)) : null,
     cr_to_reply_pct: sentMessages > 0 ? round2((replies / sentMessages) * 100) : null,
   };
@@ -652,7 +655,7 @@ export default function ExpandiPage() {
         .from("manual_stats")
         .select("record_date,account_name,campaign_name,metric_name,value")
         .eq("channel", "linkedin")
-        .in("metric_name", ["booked_meetings", "held_meetings"])
+        .in("metric_name", ["booked_meetings", "held_meetings", "qualified_leads"])
         .gte("record_date", since)
         .lte("record_date", until),
       fetchLinkedinAliases(supabase),
@@ -698,13 +701,14 @@ export default function ExpandiPage() {
 
   // meetings by campaign key (coalesce campaign_name, account_name — mirrors SQL fix)
   const meetingsMap = useMemo(() => {
-    const map = new Map<string, { booked: number; held: number }>();
+    const map = new Map<string, { booked: number; held: number; ql: number }>();
     for (const row of manualMeetings) {
       const key = row.campaign_name?.trim() || row.account_name?.trim() || "Unspecified";
-      if (!map.has(key)) map.set(key, { booked: 0, held: 0 });
+      if (!map.has(key)) map.set(key, { booked: 0, held: 0, ql: 0 });
       const val = n(row.value);
       if (row.metric_name === "booked_meetings") map.get(key)!.booked += val;
-      else map.get(key)!.held += val;
+      else if (row.metric_name === "held_meetings") map.get(key)!.held += val;
+      else if (row.metric_name === "qualified_leads") map.get(key)!.ql += val;
     }
     return map;
   }, [manualMeetings]);
@@ -728,6 +732,7 @@ export default function ExpandiPage() {
             replies: 0,
             booked_meetings: 0,
             held_meetings: 0,
+            qualified_leads: 0,
             cr_to_accept_pct: null,
             cr_to_reply_pct: null,
             __accounts: new Set<string>(),
@@ -741,6 +746,7 @@ export default function ExpandiPage() {
         d.replies += n(row.replies);
         d.booked_meetings += n(row.booked_meetings);
         d.held_meetings += n(row.held_meetings);
+        d.qualified_leads += n(row.qualified_leads);
       }
       return Array.from(grouped.values()).map((row) => ({
         account_name: displayLinkedinAccount(row.__accounts),
@@ -751,6 +757,7 @@ export default function ExpandiPage() {
         replies: row.replies,
         booked_meetings: row.booked_meetings,
         held_meetings: row.held_meetings,
+        qualified_leads: row.qualified_leads,
         cr_to_accept_pct: row.connection_req > 0 ? round2(Math.min((row.accepted / row.connection_req) * 100, 100)) : null,
         cr_to_reply_pct: row.sent_messages > 0 ? round2((row.replies / row.sent_messages) * 100) : null,
       })).sort((a, b) => {
@@ -778,7 +785,7 @@ export default function ExpandiPage() {
 
     return Array.from(map.values())
       .map((d) => {
-        const m = meetingsMap.get(d.campaign) ?? { booked: 0, held: 0 };
+        const m = meetingsMap.get(d.campaign) ?? { booked: 0, held: 0, ql: 0 };
         return {
           account_name: displayLinkedinAccount(d.accounts),
           campaign_name: d.campaign,
@@ -788,6 +795,7 @@ export default function ExpandiPage() {
           replies: d.rep,
           booked_meetings: m.booked,
           held_meetings: m.held,
+          qualified_leads: m.ql,
           cr_to_accept_pct: d.conn > 0 ? round2(Math.min((d.acc / d.conn) * 100, 100)) : null,
           cr_to_reply_pct: d.msg > 0 ? round2((d.rep / d.msg) * 100) : null,
           cr_booked: d.rep > 0 ? round2((m.booked / d.rep) * 100) : null,
@@ -835,7 +843,7 @@ export default function ExpandiPage() {
 
   // Totals derived from campaignRows
   const totals = useMemo(() => {
-    let conn = 0, acc = 0, msg = 0, rep = 0, booked = 0, held = 0;
+    let conn = 0, acc = 0, msg = 0, rep = 0, booked = 0, held = 0, ql = 0;
     for (const r of campaignRows) {
       conn += n(r.connection_req);
       acc += n(r.accepted);
@@ -843,6 +851,7 @@ export default function ExpandiPage() {
       rep += n(r.replies);
       booked += n(r.booked_meetings);
       held += n(r.held_meetings);
+      ql += n(r.qualified_leads);
     }
     return {
       connection_req: conn,
@@ -851,6 +860,7 @@ export default function ExpandiPage() {
       replies: rep,
       booked_meetings: booked,
       held_meetings: held,
+      qualified_leads: ql,
       cr_accept: conn > 0 ? Math.min((acc / conn) * 100, 100) : null,
       cr_reply: msg > 0 ? (rep / msg) * 100 : null,
       cr_booked: rep > 0 ? (booked / rep) * 100 : null,
@@ -1197,6 +1207,7 @@ export default function ExpandiPage() {
               { label: "Replies received", numVal: totals.replies, strVal: null, sub: `${pctStr(totals.cr_reply)} of messages` },
               { label: "Booked meetings", numVal: totals.booked_meetings, strVal: null, sub: `${pctStr(totals.cr_booked)} of replies` },
               { label: "Held meetings", numVal: totals.held_meetings, strVal: null, sub: `${pctStr(totals.cr_held)} of booked` },
+              { label: "Qualified Leads", numVal: totals.qualified_leads, strVal: null, sub: null },
               { label: "CR → Accept", numVal: null, strVal: pctStr(totals.cr_accept), sub: "accept / connections" },
               { label: "CR → Reply", numVal: null, strVal: pctStr(totals.cr_reply), sub: "replies / messages" },
               { label: "CR → Booked", numVal: null, strVal: pctStr(totals.cr_booked), sub: "booked / replies" },
@@ -1356,6 +1367,9 @@ export default function ExpandiPage() {
                     <th style={{ cursor: "pointer" }} onClick={() => toggleSort("held_meetings")}>
                       Held <SortIcon col="held_meetings" sortKey={sortKey} sortDir={sortDir} />
                     </th>
+                    <th style={{ cursor: "pointer" }} onClick={() => toggleSort("qualified_leads")}>
+                      QL <SortIcon col="qualified_leads" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
                     <th>CR Accept</th>
                     <th>CR Reply</th>
                     <th>CR Booked</th>
@@ -1378,6 +1392,7 @@ export default function ExpandiPage() {
                         <td className="mono">{r.replies}</td>
                         <td className="mono">{r.booked_meetings || "—"}</td>
                         <td className="mono">{r.held_meetings || "—"}</td>
+                        <td className="mono">{r.qualified_leads || "—"}</td>
                         <td className="mono">{pctStr(crAccept)}</td>
                         <td className="mono">{pctStr(crReply)}</td>
                         <td className="mono">{crBooked != null ? pctStr(crBooked) : "—"}</td>

@@ -36,9 +36,7 @@ type ManualStatInsert = {
 const FUNNEL_METRICS: MetricDef[] = [
   { key: "booked_meetings", label: "Booked Meetings", divider: true },
   { key: "held_meetings", label: "Held Meetings" },
-  { key: "sql", label: "SQL" },
-  { key: "ft_sql", label: "FT SQL" },
-  { key: "clients", label: "Clients" },
+  { key: "qualified_leads", label: "Qualified Leads" },
 ];
 
 // Telegram / App fixed metrics (channel-specific + funnel)

@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     // ── All-time: use tal_analytics_v (matches TAL page exactly) ──
     if (!hasDateFilter) {
       const tals = await postgrestAllRows(h,
-        "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings&order=created_at.desc"
+        "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,email_qualified_leads,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,li_qualified_leads,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,app_qualified_leads,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,tg_qualified_leads,total_meetings,total_held_meetings,total_qualified_leads&order=created_at.desc"
       );
       return NextResponse.json({ ok: true, since: null, until: null, tals });
     }
@@ -114,23 +114,23 @@ export async function POST(req: Request) {
       ).catch((err) => { console.error("linkedin_kpi_daily_v2 fetch failed:", err); return []; }),
       // App, Telegram, Email meetings, LinkedIn meetings: manual_stats
       postgrestAllRows(h,
-        `manual_stats?select=channel,campaign_name,account_name,metric_name,value${dateFilterManual}&metric_name=in.(total_touches,replies,booked_meetings,held_meetings)`
+        `manual_stats?select=channel,campaign_name,account_name,metric_name,value${dateFilterManual}&metric_name=in.(total_touches,replies,booked_meetings,held_meetings,qualified_leads)`
       ),
     ]);
 
     // 4. Aggregate per TAL
     type TalMetrics = {
-      email_sent: number; email_replies: number; email_meetings: number; email_held_meetings: number;
-      li_invited: number; li_accepted: number; li_replies: number; li_meetings: number; li_held_meetings: number;
-      app_touches: number; app_replies: number; app_meetings: number; app_held_meetings: number;
-      tg_touches: number; tg_replies: number; tg_meetings: number; tg_held_meetings: number;
+      email_sent: number; email_replies: number; email_meetings: number; email_held_meetings: number; email_qualified_leads: number;
+      li_invited: number; li_accepted: number; li_replies: number; li_meetings: number; li_held_meetings: number; li_qualified_leads: number;
+      app_touches: number; app_replies: number; app_meetings: number; app_held_meetings: number; app_qualified_leads: number;
+      tg_touches: number; tg_replies: number; tg_meetings: number; tg_held_meetings: number; tg_qualified_leads: number;
     };
 
     const emptyMetrics = (): TalMetrics => ({
-      email_sent: 0, email_replies: 0, email_meetings: 0, email_held_meetings: 0,
-      li_invited: 0, li_accepted: 0, li_replies: 0, li_meetings: 0, li_held_meetings: 0,
-      app_touches: 0, app_replies: 0, app_meetings: 0, app_held_meetings: 0,
-      tg_touches: 0, tg_replies: 0, tg_meetings: 0, tg_held_meetings: 0,
+      email_sent: 0, email_replies: 0, email_meetings: 0, email_held_meetings: 0, email_qualified_leads: 0,
+      li_invited: 0, li_accepted: 0, li_replies: 0, li_meetings: 0, li_held_meetings: 0, li_qualified_leads: 0,
+      app_touches: 0, app_replies: 0, app_meetings: 0, app_held_meetings: 0, app_qualified_leads: 0,
+      tg_touches: 0, tg_replies: 0, tg_meetings: 0, tg_held_meetings: 0, tg_qualified_leads: 0,
     });
 
     const byTal = new Map<string, TalMetrics>();
@@ -182,6 +182,7 @@ export async function POST(req: Request) {
         if (metric === "replies") m.app_replies += value;
         if (metric === "booked_meetings") m.app_meetings += value;
         if (metric === "held_meetings") m.app_held_meetings += value;
+        if (metric === "qualified_leads") m.app_qualified_leads += value;
       } else if (ch === "telegram") {
         const sourceKey = `telegram:name:${campaignName.toLowerCase()}`;
         const talId = findTalId("telegram", sourceKey, campaignName);
@@ -191,6 +192,7 @@ export async function POST(req: Request) {
         if (metric === "replies") m.tg_replies += value;
         if (metric === "booked_meetings") m.tg_meetings += value;
         if (metric === "held_meetings") m.tg_held_meetings += value;
+        if (metric === "qualified_leads") m.tg_qualified_leads += value;
       } else if (ch === "email" || ch === "smartlead") {
         // Email meetings from manual_stats
         let talId: string | null = null;
@@ -204,6 +206,7 @@ export async function POST(req: Request) {
         const m = getOrCreate(talId);
         if (metric === "booked_meetings") m.email_meetings += value;
         if (metric === "held_meetings") m.email_held_meetings += value;
+        if (metric === "qualified_leads") m.email_qualified_leads += value;
       }
       // LinkedIn meetings: taken from linkedin_kpi_daily_v2 (booked_meetings/held_meetings columns)
     }
@@ -224,6 +227,7 @@ export async function POST(req: Request) {
         tg_reply_rate: m.tg_touches ? Math.round((m.tg_replies / m.tg_touches) * 10000) / 100 : null,
         total_meetings: m.email_meetings + m.li_meetings + m.app_meetings + m.tg_meetings,
         total_held_meetings: m.email_held_meetings + m.li_held_meetings + m.app_held_meetings + m.tg_held_meetings,
+        total_qualified_leads: m.email_qualified_leads + m.li_qualified_leads + m.app_qualified_leads + m.tg_qualified_leads,
       };
     });
 
