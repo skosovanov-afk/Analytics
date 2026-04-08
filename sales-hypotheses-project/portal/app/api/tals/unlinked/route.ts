@@ -45,9 +45,9 @@ export async function GET(req: Request) {
       // Expandi campaigns
       postgrestGetAll(h, "expandi_campaign_instances?select=id,name&name=not.is.null"),
       // App campaigns from manual_stats
-      postgrestGetAll(h, "manual_stats?select=account_name,campaign_name&channel=eq.app&metric_name=in.(total_touches,replies,booked_meetings,held_meetings)"),
+      postgrestGetAll(h, "manual_stats?select=account_name,campaign_name&channel=eq.app&metric_name=in.(invitations,total_touches,replies,booked_meetings,held_meetings,qualified_leads)"),
       // Telegram campaigns from manual_stats
-      postgrestGetAll(h, "manual_stats?select=account_name,campaign_name&channel=eq.telegram&metric_name=in.(total_touches,replies,booked_meetings,held_meetings)"),
+      postgrestGetAll(h, "manual_stats?select=account_name,campaign_name&channel=eq.telegram&metric_name=in.(total_touches,replies,booked_meetings,held_meetings,qualified_leads)"),
     ]);
 
     // Build set of linked source keys + fallback name keys

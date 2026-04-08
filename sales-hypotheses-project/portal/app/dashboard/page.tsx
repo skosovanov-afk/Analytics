@@ -17,24 +17,30 @@ type TalRow = {
   email_reply_rate: number | null;
   email_meetings: number;
   email_held_meetings: number;
+  email_qualified_leads: number;
   li_invited: number;
   li_accepted: number;
   li_replies: number;
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  li_qualified_leads: number;
+  app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
   app_meetings: number;
   app_held_meetings: number;
+  app_qualified_leads: number;
   tg_touches: number;
   tg_replies: number;
   tg_reply_rate: number | null;
   tg_meetings: number;
   tg_held_meetings: number;
+  tg_qualified_leads: number;
   total_meetings: number;
   total_held_meetings: number;
+  total_qualified_leads: number;
 };
 
 type HypRow = {
@@ -299,16 +305,16 @@ export default function DashboardPage() {
 
   const channelTotals = useMemo(() => {
     const ch = {
-      email: { sent: 0, replies: 0, booked: 0, held: 0 },
-      linkedin: { sent: 0, replies: 0, booked: 0, held: 0 },
-      app: { sent: 0, replies: 0, booked: 0, held: 0 },
-      telegram: { sent: 0, replies: 0, booked: 0, held: 0 },
+      email: { sent: 0, replies: 0, booked: 0, held: 0, ql: 0 },
+      linkedin: { sent: 0, replies: 0, booked: 0, held: 0, ql: 0 },
+      app: { sent: 0, replies: 0, booked: 0, held: 0, ql: 0 },
+      telegram: { sent: 0, replies: 0, booked: 0, held: 0, ql: 0 },
     };
     for (const t of filteredTals) {
-      ch.email.sent += t.email_sent; ch.email.replies += t.email_replies; ch.email.booked += t.email_meetings; ch.email.held += t.email_held_meetings;
-      ch.linkedin.sent += t.li_invited; ch.linkedin.replies += t.li_replies; ch.linkedin.booked += t.li_meetings; ch.linkedin.held += t.li_held_meetings;
-      ch.app.sent += t.app_touches; ch.app.replies += t.app_replies; ch.app.booked += t.app_meetings; ch.app.held += t.app_held_meetings;
-      ch.telegram.sent += t.tg_touches; ch.telegram.replies += t.tg_replies; ch.telegram.booked += t.tg_meetings; ch.telegram.held += t.tg_held_meetings;
+      ch.email.sent += t.email_sent; ch.email.replies += t.email_replies; ch.email.booked += t.email_meetings; ch.email.held += t.email_held_meetings; ch.email.ql += t.email_qualified_leads || 0;
+      ch.linkedin.sent += t.li_invited; ch.linkedin.replies += t.li_replies; ch.linkedin.booked += t.li_meetings; ch.linkedin.held += t.li_held_meetings; ch.linkedin.ql += t.li_qualified_leads || 0;
+      ch.app.sent += t.app_touches; ch.app.replies += t.app_replies; ch.app.booked += t.app_meetings; ch.app.held += t.app_held_meetings; ch.app.ql += t.app_qualified_leads || 0;
+      ch.telegram.sent += t.tg_touches; ch.telegram.replies += t.tg_replies; ch.telegram.booked += t.tg_meetings; ch.telegram.held += t.tg_held_meetings; ch.telegram.ql += t.tg_qualified_leads || 0;
     }
     return ch;
   }, [filteredTals]);
@@ -320,6 +326,7 @@ export default function DashboardPage() {
       replies: c.email.replies + c.linkedin.replies + c.app.replies + c.telegram.replies,
       booked: c.email.booked + c.linkedin.booked + c.app.booked + c.telegram.booked,
       held: c.email.held + c.linkedin.held + c.app.held + c.telegram.held,
+      ql: c.email.ql + c.linkedin.ql + c.app.ql + c.telegram.ql,
     };
   }, [channelTotals]);
 
@@ -344,10 +351,10 @@ export default function DashboardPage() {
   /* ── Chart data ────────────────────────────────────────────────────────── */
 
   const channelBarData = useMemo(() => [
-    { channel: "Email", sent: channelTotals.email.sent, replies: channelTotals.email.replies, booked: channelTotals.email.booked, held: channelTotals.email.held },
-    { channel: "LinkedIn", sent: channelTotals.linkedin.sent, replies: channelTotals.linkedin.replies, booked: channelTotals.linkedin.booked, held: channelTotals.linkedin.held },
-    { channel: "App", sent: channelTotals.app.sent, replies: channelTotals.app.replies, booked: channelTotals.app.booked, held: channelTotals.app.held },
-    { channel: "Telegram", sent: channelTotals.telegram.sent, replies: channelTotals.telegram.replies, booked: channelTotals.telegram.booked, held: channelTotals.telegram.held },
+    { channel: "Email", sent: channelTotals.email.sent, replies: channelTotals.email.replies, booked: channelTotals.email.booked, held: channelTotals.email.held, ql: channelTotals.email.ql },
+    { channel: "LinkedIn", sent: channelTotals.linkedin.sent, replies: channelTotals.linkedin.replies, booked: channelTotals.linkedin.booked, held: channelTotals.linkedin.held, ql: channelTotals.linkedin.ql },
+    { channel: "App", sent: channelTotals.app.sent, replies: channelTotals.app.replies, booked: channelTotals.app.booked, held: channelTotals.app.held, ql: channelTotals.app.ql },
+    { channel: "Telegram", sent: channelTotals.telegram.sent, replies: channelTotals.telegram.replies, booked: channelTotals.telegram.booked, held: channelTotals.telegram.held, ql: channelTotals.telegram.ql },
   ], [channelTotals]);
 
   const funnelSteps = useMemo(() => [
@@ -355,6 +362,7 @@ export default function DashboardPage() {
     { label: "Replies", value: grandTotal.replies, color: FUNNEL_COLORS[1], rate: grandTotal.sent ? pct(grandTotal.replies, grandTotal.sent) : undefined },
     { label: "Booked Meetings", value: grandTotal.booked, color: FUNNEL_COLORS[2], rate: grandTotal.replies ? pct(grandTotal.booked, grandTotal.replies) : undefined },
     { label: "Held Meetings", value: grandTotal.held, color: FUNNEL_COLORS[3], rate: grandTotal.booked ? pct(grandTotal.held, grandTotal.booked) : undefined },
+    { label: "Qualified Leads", value: grandTotal.ql, color: FUNNEL_COLORS[4] ?? "#a78bfa", rate: grandTotal.held ? pct(grandTotal.ql, grandTotal.held) : undefined },
   ], [grandTotal]);
 
   /* ── Status colors ─────────────────────────────────────────────────────── */
@@ -465,6 +473,12 @@ export default function DashboardPage() {
                         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: ch.data.held ? "#38bdf8" : "var(--text)" }}>{num(ch.data.held)}</div>
                         <div className="muted2" style={{ fontSize: 11, marginTop: 4 }}>held</div>
                       </div>
+                      {ch.data.ql > 0 && (
+                        <div>
+                          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "#a78bfa" }}>{num(ch.data.ql)}</div>
+                          <div className="muted2" style={{ fontSize: 11, marginTop: 4 }}>QL</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -520,6 +534,7 @@ export default function DashboardPage() {
                   <span style={{ fontSize: 15, fontWeight: 650 }}>{num(grandTotal.replies)} replies {grandTotal.sent ? <span className="muted2" style={{ fontWeight: 400, fontSize: 13 }}>({pct(grandTotal.replies, grandTotal.sent)})</span> : null}</span>
                   <span style={{ fontSize: 15, fontWeight: 650, color: "#22c55e" }}>{num(grandTotal.booked)} booked</span>
                   <span style={{ fontSize: 15, fontWeight: 650, color: "#38bdf8" }}>{num(grandTotal.held)} held</span>
+                  <span style={{ fontSize: 15, fontWeight: 650, color: "#a78bfa" }}>{num(grandTotal.ql)} QL</span>
                 </div>
               </div>
             </div>

@@ -170,7 +170,7 @@ async function fetchManualEmailRows(
       .from("manual_stats")
       .select("record_date,campaign_name,metric_name,value")
       .eq("channel", "email")
-      .in("metric_name", ["sent_count", "reply_count", "booked_meetings", "held_meetings", "qualified_leads"])
+      .in("metric_name", ["booked_meetings", "held_meetings", "qualified_leads"])
       .order("record_date", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
@@ -580,21 +580,19 @@ export default function SmartleadPage() {
       replySmartlead += n(r.reply_count);
     }
 
-    let sentManual = 0, replyManual = 0, booked = 0, held = 0, ql = 0;
+    let booked = 0, held = 0, ql = 0;
     for (const r of filteredManualRows) {
       const value = n(r.value);
-      if (r.metric_name === "sent_count") sentManual += value;
-      else if (r.metric_name === "reply_count") replyManual += value;
       // Email named campaign rows are all-time backfill facts.
       // Top KPI must use only monthly NULL-campaign totals to avoid double-counting.
-      else if ((r.campaign_name ?? "").trim()) continue;
-      else if (r.metric_name === "booked_meetings") booked += value;
+      if ((r.campaign_name ?? "").trim()) continue;
+      if (r.metric_name === "booked_meetings") booked += value;
       else if (r.metric_name === "held_meetings") held += value;
       else if (r.metric_name === "qualified_leads") ql += value;
     }
 
-    const sent = sentSmartlead > 0 ? sentSmartlead : sentManual;
-    const reply = replySmartlead > 0 ? replySmartlead : replyManual;
+    const sent = sentSmartlead;
+    const reply = replySmartlead;
     return {
       sent,
       reply,

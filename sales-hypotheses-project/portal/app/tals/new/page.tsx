@@ -108,12 +108,12 @@ export default function NewTalPage() {
             .from("manual_stats")
             .select("account_name,campaign_name")
             .eq("channel", "app")
-            .in("metric_name", ["total_touches", "replies", "booked_meetings", "held_meetings"]),
+            .in("metric_name", ["invitations", "total_touches", "replies", "booked_meetings", "held_meetings", "qualified_leads"]),
           supabase!
             .from("manual_stats")
             .select("account_name,campaign_name")
             .eq("channel", "telegram")
-            .in("metric_name", ["total_touches", "replies", "booked_meetings", "held_meetings"]),
+            .in("metric_name", ["total_touches", "replies", "booked_meetings", "held_meetings", "qualified_leads"]),
         ]);
 
         if (appRows.error) throw new Error(appRows.error.message);

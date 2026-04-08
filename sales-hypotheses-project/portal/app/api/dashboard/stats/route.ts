@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       ),
       // LinkedIn: linkedin_kpi_daily_v2 (same view used by Expandi page for date ranges)
       postgrestAllRows(h,
-        `linkedin_kpi_daily_v2?select=campaign_name,connection_req,accepted,sent_messages,replies,booked_meetings,held_meetings${dateFilterLi}`
+        `linkedin_kpi_daily_v2?select=campaign_name,connection_req,accepted,sent_messages,replies${dateFilterLi}`
       ).catch((err) => { console.error("linkedin_kpi_daily_v2 fetch failed:", err); return []; }),
       // App, Telegram, Email meetings, LinkedIn meetings: manual_stats
       postgrestAllRows(h,
@@ -161,8 +161,6 @@ export async function POST(req: Request) {
       m.li_invited += Number(row.connection_req) || 0;
       m.li_accepted += Number(row.accepted) || 0;
       m.li_replies += Number(row.replies) || 0;
-      m.li_meetings += Number(row.booked_meetings) || 0;
-      m.li_held_meetings += Number(row.held_meetings) || 0;
     }
 
     // Manual stats (app, telegram, email meetings, linkedin meetings)
@@ -208,8 +206,15 @@ export async function POST(req: Request) {
         if (metric === "booked_meetings") m.email_meetings += value;
         if (metric === "held_meetings") m.email_held_meetings += value;
         if (metric === "qualified_leads") m.email_qualified_leads += value;
+      } else if (ch === "linkedin") {
+        const sourceKey = `expandi:canonical:${campaignName.toLowerCase()}`;
+        const talId = findTalId("expandi", sourceKey, campaignName);
+        if (!talId) continue;
+        const m = getOrCreate(talId);
+        if (metric === "booked_meetings") m.li_meetings += value;
+        if (metric === "held_meetings") m.li_held_meetings += value;
+        if (metric === "qualified_leads") m.li_qualified_leads += value;
       }
-      // LinkedIn meetings: taken from linkedin_kpi_daily_v2 (booked_meetings/held_meetings columns)
     }
 
     // 5. Build response

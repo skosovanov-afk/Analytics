@@ -21,6 +21,7 @@ type ManualStatRow = {
 
 type CampaignRow = {
   campaign_name: string;
+  invitations: number;
   total_touches: number;
   replies: number;
   booked_meetings: number;
@@ -35,7 +36,7 @@ type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 1000;
 
-const METRICS = ["total_touches", "replies", "booked_meetings", "held_meetings", "qualified_leads"] as const;
+const METRICS = ["invitations", "total_touches", "replies", "booked_meetings", "held_meetings", "qualified_leads"] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -130,11 +131,12 @@ export default function AppAnalyticsPage() {
   }, [rows, dateRange]);
 
   const campaignRows = useMemo((): CampaignRow[] => {
-    const map = new Map<string, { touches: number; replies: number; booked: number; held: number; ql: number }>();
+    const map = new Map<string, { inv: number; touches: number; replies: number; booked: number; held: number; ql: number }>();
     for (const row of filteredRows) {
       const campaign = row.campaign_name?.trim() || row.account_name?.trim() || "Unspecified";
-      if (!map.has(campaign)) map.set(campaign, { touches: 0, replies: 0, booked: 0, held: 0, ql: 0 });
+      if (!map.has(campaign)) map.set(campaign, { inv: 0, touches: 0, replies: 0, booked: 0, held: 0, ql: 0 });
       const d = map.get(campaign)!;
+      if (row.metric_name === "invitations") d.inv += n(row.value);
       if (row.metric_name === "total_touches") d.touches += n(row.value);
       if (row.metric_name === "replies") d.replies += n(row.value);
       if (row.metric_name === "booked_meetings") d.booked += n(row.value);
@@ -144,6 +146,7 @@ export default function AppAnalyticsPage() {
     return Array.from(map.entries())
       .map(([campaign_name, d]) => ({
         campaign_name,
+        invitations: d.inv,
         total_touches: d.touches,
         replies: d.replies,
         booked_meetings: d.booked,
@@ -161,8 +164,9 @@ export default function AppAnalyticsPage() {
   }, [filteredRows, sortKey, sortDir]);
 
   const totals = useMemo(() => {
-    let touches = 0, replies = 0, booked = 0, held = 0, ql = 0;
+    let inv = 0, touches = 0, replies = 0, booked = 0, held = 0, ql = 0;
     for (const r of campaignRows) {
+      inv += r.invitations;
       touches += r.total_touches;
       replies += r.replies;
       booked += r.booked_meetings;
@@ -170,6 +174,7 @@ export default function AppAnalyticsPage() {
       ql += r.qualified_leads;
     }
     return {
+      invitations: inv,
       total_touches: touches,
       replies,
       booked_meetings: booked,
@@ -249,6 +254,7 @@ export default function AppAnalyticsPage() {
         <FadeIn delay={60} style={{ gridColumn: "span 12" }}>
           <div className="kpiRow kpiRowSeven">
             {[
+              { label: "Invitations", val: totals.invitations, isNum: true, sub: null },
               { label: "Total touches", val: totals.total_touches, isNum: true, sub: null },
               { label: "Replies", val: totals.replies, isNum: true, sub: `${pctStr(totals.cr_reply)} of touches` },
               { label: "Booked meetings", val: totals.booked_meetings, isNum: true, sub: `${pctStr(totals.cr_booked)} of replies` },
@@ -310,6 +316,9 @@ export default function AppAnalyticsPage() {
                 <thead>
                   <tr>
                     <th>Campaign</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => toggleSort("invitations")}>
+                      Invitations <SortIcon col="invitations" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
                     <th style={{ cursor: "pointer" }} onClick={() => toggleSort("total_touches")}>
                       Total touches <SortIcon col="total_touches" sortKey={sortKey} sortDir={sortDir} />
                     </th>
@@ -334,6 +343,7 @@ export default function AppAnalyticsPage() {
                   {campaignRows.map((r) => (
                     <tr key={r.campaign_name}>
                       <td style={{ wordBreak: "break-word", maxWidth: "200px" }}><b>{r.campaign_name}</b></td>
+                      <td className="mono">{r.invitations}</td>
                       <td className="mono">{r.total_touches}</td>
                       <td className="mono">{r.replies}</td>
                       <td className="mono">{r.booked_meetings}</td>
@@ -345,7 +355,7 @@ export default function AppAnalyticsPage() {
                     </tr>
                   ))}
                   {!campaignRows.length && (
-                    <tr><td colSpan={9} className="muted2">No data.</td></tr>
+                    <tr><td colSpan={10} className="muted2">No data.</td></tr>
                   )}
                 </tbody>
               </table>
