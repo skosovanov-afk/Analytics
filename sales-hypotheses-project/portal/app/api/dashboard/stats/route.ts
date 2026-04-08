@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     // ── All-time: use tal_analytics_v (matches TAL page exactly) ──
     if (!hasDateFilter) {
       const tals = await postgrestAllRows(h,
-        "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,email_qualified_leads,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,li_qualified_leads,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,app_qualified_leads,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,tg_qualified_leads,total_meetings,total_held_meetings,total_qualified_leads&order=created_at.desc"
+        "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,email_qualified_leads,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,li_qualified_leads,app_invitations,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,app_qualified_leads,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,tg_qualified_leads,total_meetings,total_held_meetings,total_qualified_leads&order=created_at.desc"
       );
       return NextResponse.json({ ok: true, since: null, until: null, tals });
     }
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       ).catch((err) => { console.error("linkedin_kpi_daily_v2 fetch failed:", err); return []; }),
       // App, Telegram, Email meetings, LinkedIn meetings: manual_stats
       postgrestAllRows(h,
-        `manual_stats?select=channel,campaign_name,account_name,metric_name,value${dateFilterManual}&metric_name=in.(total_touches,replies,booked_meetings,held_meetings,qualified_leads)`
+        `manual_stats?select=channel,campaign_name,account_name,metric_name,value${dateFilterManual}&metric_name=in.(invitations,total_touches,replies,booked_meetings,held_meetings,qualified_leads)`
       ),
     ]);
 
@@ -122,14 +122,14 @@ export async function POST(req: Request) {
     type TalMetrics = {
       email_sent: number; email_replies: number; email_meetings: number; email_held_meetings: number; email_qualified_leads: number;
       li_invited: number; li_accepted: number; li_replies: number; li_meetings: number; li_held_meetings: number; li_qualified_leads: number;
-      app_touches: number; app_replies: number; app_meetings: number; app_held_meetings: number; app_qualified_leads: number;
+      app_invitations: number; app_touches: number; app_replies: number; app_meetings: number; app_held_meetings: number; app_qualified_leads: number;
       tg_touches: number; tg_replies: number; tg_meetings: number; tg_held_meetings: number; tg_qualified_leads: number;
     };
 
     const emptyMetrics = (): TalMetrics => ({
       email_sent: 0, email_replies: 0, email_meetings: 0, email_held_meetings: 0, email_qualified_leads: 0,
       li_invited: 0, li_accepted: 0, li_replies: 0, li_meetings: 0, li_held_meetings: 0, li_qualified_leads: 0,
-      app_touches: 0, app_replies: 0, app_meetings: 0, app_held_meetings: 0, app_qualified_leads: 0,
+      app_invitations: 0, app_touches: 0, app_replies: 0, app_meetings: 0, app_held_meetings: 0, app_qualified_leads: 0,
       tg_touches: 0, tg_replies: 0, tg_meetings: 0, tg_held_meetings: 0, tg_qualified_leads: 0,
     });
 
@@ -178,6 +178,7 @@ export async function POST(req: Request) {
         const talId = findTalId("app", sourceKey, campaignName);
         if (!talId) continue;
         const m = getOrCreate(talId);
+        if (metric === "invitations") m.app_invitations += value;
         if (metric === "total_touches") m.app_touches += value;
         if (metric === "replies") m.app_replies += value;
         if (metric === "booked_meetings") m.app_meetings += value;

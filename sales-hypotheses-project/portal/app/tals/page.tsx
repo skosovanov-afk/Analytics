@@ -22,6 +22,7 @@ type TalRow = {
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
@@ -257,10 +258,11 @@ export default function TalsPage() {
                         ]}
                       />
                     )}
-                    {(tal.app_touches + tal.app_replies + tal.app_meetings + tal.app_held_meetings > 0) && (
+                    {(tal.app_invitations + tal.app_touches + tal.app_replies + tal.app_meetings + tal.app_held_meetings > 0) && (
                       <MetricChannel
                         title="App"
                         items={[
+                          { value: num(tal.app_invitations), label: "invitations" },
                           { value: num(tal.app_touches), label: "touches" },
                           { value: num(tal.app_replies), label: "replies" },
                           { value: num(tal.app_meetings), label: "booked" },

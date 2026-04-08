@@ -23,6 +23,7 @@ type TalDetail = {
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
@@ -280,12 +281,13 @@ export default function TalDetailPage() {
           </div>
         )}
 
-        {(tal.app_touches + tal.app_replies + tal.app_meetings + tal.app_held_meetings > 0) && (
+        {(tal.app_invitations + tal.app_touches + tal.app_replies + tal.app_meetings + tal.app_held_meetings > 0) && (
           <div>
             <div className="sectionLabel" style={{ marginBottom: 12 }}>
               App
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <StatBox label="Invitations" value={tal.app_invitations.toLocaleString()} />
               <StatBox label="Touches" value={tal.app_touches.toLocaleString()} />
               <StatBox label="Replies" value={tal.app_replies.toLocaleString()} />
               <StatBox label="Booked" value={tal.app_meetings} />

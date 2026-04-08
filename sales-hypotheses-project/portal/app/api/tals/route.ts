@@ -52,7 +52,7 @@ export async function GET(req: Request) {
 
     const tals = await sbGet(
       auth,
-      "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings&order=created_at.desc"
+      "tal_analytics_v?select=id,name,description,criteria,created_at,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_invitations,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings&order=created_at.desc"
     );
 
     return NextResponse.json({ ok: true, tals: Array.isArray(tals) ? tals : [] });

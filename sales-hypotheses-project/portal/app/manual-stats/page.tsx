@@ -39,8 +39,16 @@ const FUNNEL_METRICS: MetricDef[] = [
   { key: "qualified_leads", label: "Qualified Leads" },
 ];
 
-// Telegram / App fixed metrics (channel-specific + funnel)
+// Telegram fixed metrics (channel-specific + funnel)
 const TELEGRAM_METRICS: MetricDef[] = [
+  { key: "total_touches", label: "Total touches" },
+  { key: "replies", label: "Replies" },
+  ...FUNNEL_METRICS,
+];
+
+// App fixed metrics (invitations + channel-specific + funnel)
+const APP_METRICS: MetricDef[] = [
+  { key: "invitations", label: "Invitations" },
   { key: "total_touches", label: "Total touches" },
   { key: "replies", label: "Replies" },
   ...FUNNEL_METRICS,
@@ -58,7 +66,6 @@ const FIXED_METRICS: Record<"linkedin" | "email", MetricDef[]> = {
   email: [
     { key: "sent_count", label: "Emails sent" },
     { key: "reply_count", label: "Replies" },
-    { key: "open_count", label: "Opens" },
     ...FUNNEL_METRICS,
   ],
 };
@@ -102,13 +109,14 @@ export default function ManualStatsPage() {
   // Values for fixed-metric channels (linkedin / email) — includes funnel
   const [fixedValues, setFixedValues] = useState<Record<string, string>>({});
 
-  // Custom rows for telegram / app
-  const [dynamicMetrics, setDynamicMetrics] = useState<{ name: string; value: string }[]>([
-    { name: "", value: "" },
-  ]);
-
   // Funnel values for telegram / app (shown as fixed block below dynamic)
   const [funnelValues, setFunnelValues] = useState<Record<string, string>>({});
+
+  // Campaign picker state
+  const [campaignOptions, setCampaignOptions] = useState<string[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [isNewCampaign, setIsNewCampaign] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState("");
 
   // ─── Entries state ────────────────────────────────────────────────────────
 
@@ -137,12 +145,64 @@ export default function ManualStatsPage() {
 
   useEffect(() => { load(); }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset all metric values when channel changes
+  // Reset all metric values and load campaigns when channel changes
   useEffect(() => {
     setFixedValues({});
-    setDynamicMetrics([{ name: "", value: "" }]);
     setFunnelValues({});
-  }, [channel]);
+    setCampaignName("");
+    setIsNewCampaign(false);
+    setNewCampaignName("");
+
+    if (!supabase) return;
+    let cancelled = false;
+    async function loadCampaigns() {
+      setCampaignsLoading(true);
+      setCampaignOptions([]);
+      try {
+        let names: string[] = [];
+        if (channel === "linkedin") {
+          const { data } = await supabase!
+            .from("expandi_campaign_instances")
+            .select("name")
+            .eq("active", true)
+            .or("archived.is.false,archived.is.null");
+          const seen = new Set<string>();
+          for (const r of data ?? []) {
+            const n = String(r.name ?? "").trim();
+            if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+          }
+        } else if (channel === "email") {
+          const { data } = await supabase!
+            .from("smartlead_stats_daily")
+            .select("campaign_id,campaign_name");
+          const seen = new Map<string, string>();
+          for (const r of data ?? []) {
+            const n = String(r.campaign_name ?? "").trim();
+            if (n && !seen.has(n.toLowerCase())) { seen.set(n.toLowerCase(), n); }
+          }
+          names = Array.from(seen.values());
+        } else if (channel === "telegram" || channel === "app") {
+          const { data } = await supabase!
+            .from("manual_stats")
+            .select("campaign_name")
+            .eq("channel", channel);
+          const seen = new Set<string>();
+          for (const r of data ?? []) {
+            const n = String(r.campaign_name ?? "").trim();
+            if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+          }
+        }
+        names.sort((a, b) => a.localeCompare(b));
+        if (!cancelled) setCampaignOptions(names);
+      } catch (e) {
+        console.error("Failed to load campaigns:", e);
+      } finally {
+        if (!cancelled) setCampaignsLoading(false);
+      }
+    }
+    loadCampaigns();
+    return () => { cancelled = true; };
+  }, [channel, supabase]);
 
   // ─── Submit ───────────────────────────────────────────────────────────────
 
@@ -152,34 +212,29 @@ export default function ManualStatsPage() {
     setSaving(true);
     setStatus("");
 
+    const effectiveCampaignName = isNewCampaign ? newCampaignName.trim() : campaignName.trim();
     const base = {
       record_date: recordDate,
       channel,
       account_name: accountName.trim() || null,
-      campaign_name: campaignName.trim() || null,
+      campaign_name: effectiveCampaignName || null,
       note: note.trim() || null,
     };
 
     let inserts: ManualStatInsert[] = [];
 
     if (channel === "linkedin" || channel === "email") {
-      // All metrics (channel-specific + funnel) are in fixedValues
       inserts = FIXED_METRICS[channel]
         .filter((m) => fixedValues[m.key] !== "" && fixedValues[m.key] !== undefined)
         .map((m) => ({ ...base, metric_name: m.key, value: parseInt(fixedValues[m.key], 10) }))
         .filter((r) => !isNaN((r as { value: number }).value));
     } else {
-      // telegram / app: dynamic custom rows
-      const dynRows = dynamicMetrics
-        .filter((m) => m.name.trim() && m.value !== "")
-        .map((m) => ({ ...base, metric_name: m.name.trim(), value: parseInt(m.value, 10) }))
-        .filter((r) => !isNaN((r as { value: number }).value));
-      // + telegram/app fixed metrics (total_touches, replies + funnel)
-      const fnlRows = TELEGRAM_METRICS
+      // telegram / app: fixed metrics only
+      const channelMetrics = channel === "app" ? APP_METRICS : TELEGRAM_METRICS;
+      inserts = channelMetrics
         .filter((m) => funnelValues[m.key] !== "" && funnelValues[m.key] !== undefined)
         .map((m) => ({ ...base, metric_name: m.key, value: parseInt(funnelValues[m.key], 10) }))
         .filter((r) => !isNaN((r as { value: number }).value));
-      inserts = [...dynRows, ...fnlRows];
     }
 
     if (!inserts.length) {
@@ -204,9 +259,18 @@ export default function ManualStatsPage() {
     } else {
       setStatus(`Сохранено ${deduped.length} метрик.`);
       setFixedValues({});
-      setDynamicMetrics([{ name: "", value: "" }]);
       setFunnelValues({});
       setNote("");
+      setIsNewCampaign(false);
+      setNewCampaignName("");
+      // Reload campaigns list (new campaign_name may have appeared)
+      setCampaignOptions((prev) => {
+        if (effectiveCampaignName && !prev.some((n) => n.toLowerCase() === effectiveCampaignName.toLowerCase())) {
+          return [...prev, effectiveCampaignName].sort((a, b) => a.localeCompare(b));
+        }
+        return prev;
+      });
+      setCampaignName(effectiveCampaignName);
       await load();
     }
     setSaving(false);
@@ -219,20 +283,6 @@ export default function ManualStatsPage() {
     const { error } = await supabase.from("manual_stats").delete().eq("id", id);
     if (error) { setStatus(`Error: ${error.message}`); return; }
     setRows((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  // ─── Dynamic metric helpers (telegram / app) ──────────────────────────────
-
-  function updateDynamic(i: number, field: "name" | "value", val: string) {
-    setDynamicMetrics((prev) => prev.map((m, idx) => idx === i ? { ...m, [field]: val } : m));
-  }
-
-  function addDynamic() {
-    setDynamicMetrics((prev) => [...prev, { name: "", value: "" }]);
-  }
-
-  function removeDynamic(i: number) {
-    setDynamicMetrics((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   // ─── Metric row renderer ──────────────────────────────────────────────────
@@ -325,13 +375,49 @@ export default function ManualStatsPage() {
                 </div>
                 <div style={{ gridColumn: "span 4" }}>
                   <div className="muted2" style={{ fontSize: 12, marginBottom: 5 }}>Кампания</div>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="напр. Slush 2025"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                  />
+                  {isNewCampaign ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Название новой кампании"
+                        value={newCampaignName}
+                        onChange={(e) => setNewCampaignName(e.target.value)}
+                        style={{ flex: 1 }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ padding: "6px 10px", fontSize: 13 }}
+                        onClick={() => { setIsNewCampaign(false); setNewCampaignName(""); }}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      className="select"
+                      value={campaignName}
+                      onChange={(e) => {
+                        if (e.target.value === "__new__") {
+                          setIsNewCampaign(true);
+                          setCampaignName("");
+                        } else {
+                          setCampaignName(e.target.value);
+                        }
+                      }}
+                      disabled={campaignsLoading}
+                    >
+                      <option value="">{campaignsLoading ? "Загрузка..." : "Выбери кампанию"}</option>
+                      {campaignOptions.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                      {(channel === "telegram" || channel === "app") && (
+                        <option value="__new__">+ Новая кампания...</option>
+                      )}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -348,50 +434,16 @@ export default function ManualStatsPage() {
                   ))}
                 </div>
               ) : (
-                /* Telegram / App: custom rows + funnel below */
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-                    {dynamicMetrics.map((m, i) => (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 180px 32px", alignItems: "center", gap: 10 }}>
-                        <input
-                          type="text"
-                          className="input"
-                          placeholder="Название метрики"
-                          value={m.name}
-                          onChange={(e) => updateDynamic(i, "name", e.target.value)}
-                        />
-                        <input
-                          type="number"
-                          className="input"
-                          min={0}
-                          placeholder="Значение"
-                          value={m.value}
-                          onChange={(e) => updateDynamic(i, "value", e.target.value)}
-                        />
-                        {dynamicMetrics.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeDynamic(i)}
-                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 18, lineHeight: 1 }}
-                          >×</button>
-                        )}
-                      </div>
-                    ))}
-                    <button type="button" className="btn" style={{ alignSelf: "flex-start", marginTop: 4 }} onClick={addDynamic}>
-                      + Add metric
-                    </button>
-                  </div>
-                  {/* Telegram/app fixed metrics: total_touches, replies + funnel */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-                    {TELEGRAM_METRICS.map((m, i) => (
-                      <MetricRow
-                        key={m.key}
-                        m={i === 0 ? m : m}
-                        values={funnelValues}
-                        setValues={setFunnelValues}
-                      />
-                    ))}
-                  </div>
+                /* Telegram / App: fixed metrics only */
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+                  {(channel === "app" ? APP_METRICS : TELEGRAM_METRICS).map((m) => (
+                    <MetricRow
+                      key={m.key}
+                      m={m}
+                      values={funnelValues}
+                      setValues={setFunnelValues}
+                    />
+                  ))}
                 </div>
               )}
 

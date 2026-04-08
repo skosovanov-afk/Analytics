@@ -1,0 +1,14 @@
+-- Migration: Add app_invitations to app_kpi_alltime_v and tal_analytics_v
+-- Date: 2026-04-07
+-- Status: APPLIED
+-- Context: App channel now tracks "invitations" as the first funnel step
+--          (Invitations -> Total touches -> Replies -> Booked -> Held -> Qualified)
+--
+-- What was done:
+-- 1. DROP VIEW tal_analytics_v CASCADE (depends on app_kpi_alltime_v)
+-- 2. DROP VIEW app_kpi_alltime_v
+-- 3. CREATE VIEW app_kpi_alltime_v with new "invitations" column
+-- 4. CREATE VIEW tal_analytics_v with new "app_invitations" column
+-- 5. GRANT SELECT on both views to anon, authenticated
+--
+-- The invitations metric is aggregated from manual_stats where channel='app' and metric_name='invitations'

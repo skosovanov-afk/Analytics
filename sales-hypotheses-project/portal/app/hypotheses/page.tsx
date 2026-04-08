@@ -160,6 +160,7 @@ type TalOption = {
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
@@ -198,7 +199,7 @@ function deriveTalChannels(tal: TalOption | null | undefined): string[] {
   const result: string[] = [];
   if (tal.email_sent > 0 || tal.email_replies > 0) result.push("Email");
   if (tal.li_invited > 0 || tal.li_accepted > 0) result.push("LinkedIn");
-  if (tal.app_touches > 0 || tal.app_replies > 0) result.push("App");
+  if (tal.app_invitations > 0 || tal.app_touches > 0 || tal.app_replies > 0) result.push("App");
   if (tal.tg_touches > 0 || tal.tg_replies > 0) result.push("Telegram");
   return result;
 }
@@ -1012,7 +1013,7 @@ export default function HypothesesRegistryPage() {
       supabase.from("sales_company_scales").select("id,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(500),
       supabase.from("sales_icp_company_profiles").select("id,vertical_name,sub_vertical,region,size_bucket,tech_stack,notes").order("vertical_name", { ascending: true }).order("sub_vertical", { ascending: true }).limit(500),
       supabase.from("sales_channels").select("slug,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(200),
-      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings").order("name", { ascending: true }).limit(500),
+      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_invitations,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings").order("name", { ascending: true }).limit(500),
       supabase.from("hypothesis_owners").select("id,name").order("name", { ascending: true }).limit(50)
     ]);
     if (!verticalRes.error) setVerticals((verticalRes.data ?? []) as VerticalOption[]);
@@ -1939,7 +1940,7 @@ export default function HypothesesRegistryPage() {
                   ? `Linked TAL: ${selectedTal.name}${selectedTal.criteria ? ` · ${selectedTal.criteria}` : ""}`
                   : "Optional. Link this hypothesis to a Territory Account List to make the targeting set explicit."}
               </div>
-              {selectedTal && (selectedTal.total_meetings > 0 || selectedTal.email_sent > 0 || selectedTal.li_invited > 0 || selectedTal.app_touches > 0 || selectedTal.tg_touches > 0) && (
+              {selectedTal && (selectedTal.total_meetings > 0 || selectedTal.email_sent > 0 || selectedTal.li_invited > 0 || selectedTal.app_invitations > 0 || selectedTal.app_touches > 0 || selectedTal.tg_touches > 0) && (
                 <div className="helpInline" style={{ marginTop: 4, lineHeight: 1.6 }}>
                   {(selectedTal.email_sent + selectedTal.email_replies + selectedTal.email_meetings + selectedTal.email_held_meetings > 0) && (
                     <div><strong>Email:</strong> {selectedTal.email_sent} sent, {selectedTal.email_replies} replies ({selectedTal.email_reply_rate ?? 0}%), {selectedTal.email_meetings} booked{selectedTal.email_replies > 0 ? ` (${Math.round((selectedTal.email_meetings / selectedTal.email_replies) * 100)}%)` : ""}, {selectedTal.email_held_meetings} held{selectedTal.email_meetings > 0 ? ` (${Math.round((selectedTal.email_held_meetings / selectedTal.email_meetings) * 100)}%)` : ""}</div>
@@ -1947,8 +1948,8 @@ export default function HypothesesRegistryPage() {
                   {(selectedTal.li_invited + selectedTal.li_accepted + selectedTal.li_replies + selectedTal.li_meetings + selectedTal.li_held_meetings > 0) && (
                     <div><strong>LinkedIn:</strong> {selectedTal.li_invited} invited, {selectedTal.li_accepted} accepted ({selectedTal.li_accept_rate ?? 0}%), {selectedTal.li_replies} replies{selectedTal.li_accepted > 0 ? ` (${Math.round((selectedTal.li_replies / selectedTal.li_accepted) * 100)}%)` : ""}, {selectedTal.li_meetings} booked{selectedTal.li_replies > 0 ? ` (${Math.round((selectedTal.li_meetings / selectedTal.li_replies) * 100)}%)` : ""}, {selectedTal.li_held_meetings} held{selectedTal.li_meetings > 0 ? ` (${Math.round((selectedTal.li_held_meetings / selectedTal.li_meetings) * 100)}%)` : ""}</div>
                   )}
-                  {(selectedTal.app_touches + selectedTal.app_replies + selectedTal.app_meetings + selectedTal.app_held_meetings > 0) && (
-                    <div><strong>App:</strong> {selectedTal.app_touches} touches, {selectedTal.app_replies} replies ({selectedTal.app_reply_rate ?? 0}%), {selectedTal.app_meetings} booked{selectedTal.app_replies > 0 ? ` (${Math.round((selectedTal.app_meetings / selectedTal.app_replies) * 100)}%)` : ""}, {selectedTal.app_held_meetings} held{selectedTal.app_meetings > 0 ? ` (${Math.round((selectedTal.app_held_meetings / selectedTal.app_meetings) * 100)}%)` : ""}</div>
+                  {(selectedTal.app_invitations + selectedTal.app_touches + selectedTal.app_replies + selectedTal.app_meetings + selectedTal.app_held_meetings > 0) && (
+                    <div><strong>App:</strong> {selectedTal.app_invitations} invitations, {selectedTal.app_touches} touches, {selectedTal.app_replies} replies ({selectedTal.app_reply_rate ?? 0}%), {selectedTal.app_meetings} booked{selectedTal.app_replies > 0 ? ` (${Math.round((selectedTal.app_meetings / selectedTal.app_replies) * 100)}%)` : ""}, {selectedTal.app_held_meetings} held{selectedTal.app_meetings > 0 ? ` (${Math.round((selectedTal.app_held_meetings / selectedTal.app_meetings) * 100)}%)` : ""}</div>
                   )}
                   {(selectedTal.tg_touches + selectedTal.tg_replies + selectedTal.tg_meetings + selectedTal.tg_held_meetings > 0) && (
                     <div><strong>Telegram:</strong> {selectedTal.tg_touches} touches, {selectedTal.tg_replies} replies ({selectedTal.tg_reply_rate ?? 0}%), {selectedTal.tg_meetings} booked{selectedTal.tg_replies > 0 ? ` (${Math.round((selectedTal.tg_meetings / selectedTal.tg_replies) * 100)}%)` : ""}, {selectedTal.tg_held_meetings} held{selectedTal.tg_meetings > 0 ? ` (${Math.round((selectedTal.tg_held_meetings / selectedTal.tg_meetings) * 100)}%)` : ""}</div>
