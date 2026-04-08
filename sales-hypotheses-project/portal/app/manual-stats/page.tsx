@@ -178,14 +178,15 @@ export default function ManualStatsPage() {
             .from("linkedin_kpi_alltime_v2")
             .select("account_name,campaign_name,li_account_id");
           // Build account_id → account_name mapping
+          const EXCLUDED_ACCOUNTS = new Set(["Legacy / manual supplement"]);
           const idToName = new Map<number, string>();
           const accountToCampaigns = new Map<string, Set<string>>();
           for (const r of accountData ?? []) {
             const accName = String(r.account_name ?? "").trim();
             const campName = String(r.campaign_name ?? "").trim();
             const accId = Number(r.li_account_id);
-            if (accName && Number.isFinite(accId)) idToName.set(accId, accName);
-            if (accName && campName) {
+            if (accName && !EXCLUDED_ACCOUNTS.has(accName) && Number.isFinite(accId)) idToName.set(accId, accName);
+            if (accName && !EXCLUDED_ACCOUNTS.has(accName) && campName) {
               if (!accountToCampaigns.has(accName)) accountToCampaigns.set(accName, new Set());
               accountToCampaigns.get(accName)!.add(campName);
             }
