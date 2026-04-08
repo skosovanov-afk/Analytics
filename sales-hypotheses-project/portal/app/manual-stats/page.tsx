@@ -118,6 +118,10 @@ export default function ManualStatsPage() {
   const [isNewCampaign, setIsNewCampaign] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
 
+  // LinkedIn account → campaigns mapping
+  const [linkedinAccountOptions, setLinkedinAccountOptions] = useState<string[]>([]);
+  const [linkedinAccountCampaigns, setLinkedinAccountCampaigns] = useState<Map<string, string[]>>(new Map());
+
   // ─── Entries state ────────────────────────────────────────────────────────
 
   const [rows, setRows] = useState<StatRow[]>([]);
@@ -150,8 +154,11 @@ export default function ManualStatsPage() {
     setFixedValues({});
     setFunnelValues({});
     setCampaignName("");
+    setAccountName("");
     setIsNewCampaign(false);
     setNewCampaignName("");
+    setLinkedinAccountOptions([]);
+    setLinkedinAccountCampaigns(new Map());
 
     if (!supabase) return;
     let cancelled = false;
@@ -163,13 +170,46 @@ export default function ManualStatsPage() {
         if (channel === "linkedin") {
           const { data } = await supabase!
             .from("expandi_campaign_instances")
-            .select("name")
+            .select("name,li_account_id")
             .eq("active", true)
             .or("archived.is.false,archived.is.null");
+          // Also load account names from the alltime view
+          const { data: accountData } = await supabase!
+            .from("linkedin_kpi_alltime_v2")
+            .select("account_name,campaign_name,li_account_id");
+          // Build account_id → account_name mapping
+          const idToName = new Map<number, string>();
+          const accountToCampaigns = new Map<string, Set<string>>();
+          for (const r of accountData ?? []) {
+            const accName = String(r.account_name ?? "").trim();
+            const campName = String(r.campaign_name ?? "").trim();
+            const accId = Number(r.li_account_id);
+            if (accName && Number.isFinite(accId)) idToName.set(accId, accName);
+            if (accName && campName) {
+              if (!accountToCampaigns.has(accName)) accountToCampaigns.set(accName, new Set());
+              accountToCampaigns.get(accName)!.add(campName);
+            }
+          }
+          // Add active campaigns to their accounts
           const seen = new Set<string>();
           for (const r of data ?? []) {
             const n = String(r.name ?? "").trim();
+            const accId = Number(r.li_account_id);
+            const accName = Number.isFinite(accId) ? idToName.get(accId) : undefined;
             if (n && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); names.push(n); }
+            if (accName && n) {
+              if (!accountToCampaigns.has(accName)) accountToCampaigns.set(accName, new Set());
+              accountToCampaigns.get(accName)!.add(n);
+            }
+          }
+          // Convert to sorted arrays
+          const accountMap = new Map<string, string[]>();
+          for (const [acc, camps] of accountToCampaigns) {
+            accountMap.set(acc, Array.from(camps).sort((a, b) => a.localeCompare(b)));
+          }
+          if (!cancelled) {
+            setLinkedinAccountOptions(Array.from(accountMap.keys()).sort((a, b) => a.localeCompare(b)));
+            setLinkedinAccountCampaigns(accountMap);
           }
         } else if (channel === "email") {
           const { data } = await supabase!
@@ -315,6 +355,13 @@ export default function ManualStatsPage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  // For LinkedIn: filter campaigns by selected account
+  const filteredCampaignOptions = useMemo(() => {
+    if (channel !== "linkedin" || !accountName.trim()) return campaignOptions;
+    const forAccount = linkedinAccountCampaigns.get(accountName.trim());
+    return forAccount ?? campaignOptions;
+  }, [channel, accountName, campaignOptions, linkedinAccountCampaigns]);
+
   const isFixed = channel === "linkedin" || channel === "email";
 
   return (
@@ -365,13 +412,29 @@ export default function ManualStatsPage() {
                 </div>
                 <div style={{ gridColumn: "span 4" }}>
                   <div className="muted2" style={{ fontSize: 12, marginBottom: 5 }}>Аккаунт</div>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="напр. Ilya Petrov"
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                  />
+                  {channel === "linkedin" ? (
+                    <select
+                      className="select"
+                      value={accountName}
+                      onChange={(e) => {
+                        setAccountName(e.target.value);
+                        setCampaignName("");
+                      }}
+                    >
+                      <option value="">Все аккаунты</option>
+                      {linkedinAccountOptions.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="напр. Ilya Petrov"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                    />
+                  )}
                 </div>
                 <div style={{ gridColumn: "span 4" }}>
                   <div className="muted2" style={{ fontSize: 12, marginBottom: 5 }}>Кампания</div>
@@ -410,7 +473,7 @@ export default function ManualStatsPage() {
                       disabled={campaignsLoading}
                     >
                       <option value="">{campaignsLoading ? "Загрузка..." : "Выбери кампанию"}</option>
-                      {campaignOptions.map((name) => (
+                      {filteredCampaignOptions.map((name) => (
                         <option key={name} value={name}>{name}</option>
                       ))}
                       {(channel === "telegram" || channel === "app") && (
