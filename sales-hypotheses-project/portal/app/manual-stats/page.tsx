@@ -57,15 +57,9 @@ const APP_METRICS: MetricDef[] = [
 // Channel-specific metrics + funnel appended (all saved under the selected channel)
 const FIXED_METRICS: Record<"linkedin" | "email", MetricDef[]> = {
   linkedin: [
-    { key: "connection_req", label: "Connection requests sent" },
-    { key: "accepted", label: "Connections accepted" },
-    { key: "sent_messages", label: "Messages sent" },
-    { key: "replies", label: "Replies" },
     ...FUNNEL_METRICS,
   ],
   email: [
-    { key: "sent_count", label: "Emails sent" },
-    { key: "reply_count", label: "Replies" },
     ...FUNNEL_METRICS,
   ],
 };
