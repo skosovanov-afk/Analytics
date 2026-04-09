@@ -408,11 +408,83 @@ async function syncCampaign(
     await sbInsert("smartlead_events", part, true, "event_identity_key");
   }
 
+  // Fetch reply bodies from SmartLead message-history API (best-effort, max 10 per campaign)
+  let replyBodiesFetched = 0;
+  const MAX_REPLY_BODY_FETCHES = 10;
+  try {
+    // Find reply events that were just upserted and need body text
+    const replyEmails = new Set<string>();
+    for (const ev of dedupedEventsPayload) {
+      if (ev.event_type === "reply" && ev.email && ev.lead_id) {
+        replyEmails.add(String(ev.email));
+      }
+    }
+
+    // Check which ones already have reply_body in DB
+    const needBody: Array<{ email: string; leadId: number }> = [];
+    for (const email of replyEmails) {
+      if (needBody.length >= MAX_REPLY_BODY_FETCHES) break;
+      const leadId = emailToLeadId.get(email);
+      if (!leadId) continue;
+      const q = new URLSearchParams({
+        select: "id,reply_body",
+        campaign_id: `eq.${campaignId}`,
+        email: `eq.${email}`,
+        event_type: "eq.reply",
+        reply_body: "is.null",
+        limit: "1",
+      });
+      const { data } = await sbGet("smartlead_events", q);
+      if (data.length > 0) {
+        needBody.push({ email, leadId });
+      }
+    }
+
+    for (const { email, leadId } of needBody) {
+      try {
+        // Resolve global lead ID (SmartLead global, not campaign-specific)
+        const leadLookup = await slGet(`/api/v1/leads/?email=${encodeURIComponent(email)}`);
+        const globalId = leadLookup?.id;
+        if (!globalId) continue;
+
+        const historyRaw = await slGet(
+          `/api/v1/campaigns/${campaignId}/leads/${globalId}/message-history?show_plain_text_response=true`
+        );
+        const history = historyRaw?.history ?? (Array.isArray(historyRaw) ? historyRaw : []);
+        const replyMsgs = history
+          .filter((m: any) => String(m.type ?? "").toUpperCase() === "REPLY")
+          .map((m: any) => ({
+            body: String(m.email_body ?? m.body ?? "").trim(),
+            time: m.time ?? m.sent_at ?? m.received_at ?? "",
+          }))
+          .filter((r: any) => r.body);
+
+        if (replyMsgs.length > 0) {
+          // Update all reply events for this email in this campaign
+          const replyBody = replyMsgs[replyMsgs.length - 1].body; // latest reply
+          await sbPatch("smartlead_events", {
+            campaign_id: `eq.${campaignId}`,
+            email: `eq.${email}`,
+            event_type: "eq.reply",
+            reply_body: "is.null",
+          }, { reply_body: replyBody });
+          replyBodiesFetched++;
+        }
+      } catch (e) {
+        // Best-effort: don't fail the whole sync for reply body fetch
+        console.warn(`Reply body fetch failed for ${email} in campaign ${campaignId}: ${e}`);
+      }
+    }
+  } catch (e) {
+    console.warn(`Reply body enrichment failed for campaign ${campaignId}: ${e}`);
+  }
+
   return {
     campaignId,
     campaignName,
     leadsUpserted: leadsPayload.length,
     eventsInserted: dedupedEventsPayload.length,
+    replyBodiesFetched,
     sent,
     reply,
   };
