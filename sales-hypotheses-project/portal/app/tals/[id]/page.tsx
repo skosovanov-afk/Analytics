@@ -17,25 +17,30 @@ type TalDetail = {
   email_reply_rate: number | null;
   email_meetings: number;
   email_held_meetings: number;
+  email_qualified_leads: number;
   li_invited: number;
   li_accepted: number;
   li_replies: number;
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  li_qualified_leads: number;
   app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
   app_meetings: number;
   app_held_meetings: number;
+  app_qualified_leads: number;
   tg_touches: number;
   tg_replies: number;
   tg_reply_rate: number | null;
   tg_meetings: number;
   tg_held_meetings: number;
+  tg_qualified_leads: number;
   total_meetings: number;
   total_held_meetings: number;
+  total_qualified_leads: number;
 };
 
 type TalCampaign = {
@@ -238,6 +243,11 @@ export default function TalDetailPage() {
                   {tal.total_held_meetings} held meetings
                 </span>
               )}
+              {(tal.total_qualified_leads || 0) > 0 && (
+                <span className="statusBadge" style={{ background: "rgba(167, 139, 250, 0.16)", color: "#a78bfa" }}>
+                  {tal.total_qualified_leads} QL
+                </span>
+              )}
             </div>
           </div>
           <button className="btn btnDanger" onClick={handleDelete}>
@@ -255,6 +265,7 @@ export default function TalDetailPage() {
               <StatBox label="Replies" value={tal.email_replies.toLocaleString()} />
               <StatBox label="Booked" value={tal.email_meetings} />
               <StatBox label="Held" value={tal.email_held_meetings} />
+              <StatBox label="QL" value={tal.email_qualified_leads || 0} />
               <StatBox label="Reply rate" value={pct(tal.email_reply_rate)} />
               <StatBox label="Reply → Booked" value={calcRate(tal.email_meetings, tal.email_replies)} />
               <StatBox label="Booked → Held" value={calcRate(tal.email_held_meetings, tal.email_meetings)} />
@@ -273,6 +284,7 @@ export default function TalDetailPage() {
               <StatBox label="Replies" value={tal.li_replies.toLocaleString()} />
               <StatBox label="Booked" value={tal.li_meetings} />
               <StatBox label="Held" value={tal.li_held_meetings} />
+              <StatBox label="QL" value={tal.li_qualified_leads || 0} />
               <StatBox label="Accept rate" value={pct(tal.li_accept_rate)} />
               <StatBox label="Reply rate" value={calcRate(tal.li_replies, tal.li_accepted)} />
               <StatBox label="Reply → Booked" value={calcRate(tal.li_meetings, tal.li_replies)} />
@@ -292,6 +304,7 @@ export default function TalDetailPage() {
               <StatBox label="Replies" value={tal.app_replies.toLocaleString()} />
               <StatBox label="Booked" value={tal.app_meetings} />
               <StatBox label="Held" value={tal.app_held_meetings} />
+              <StatBox label="QL" value={tal.app_qualified_leads || 0} />
               <StatBox label="Reply rate" value={pct(tal.app_reply_rate)} />
               <StatBox label="Reply → Booked" value={calcRate(tal.app_meetings, tal.app_replies)} />
               <StatBox label="Booked → Held" value={calcRate(tal.app_held_meetings, tal.app_meetings)} />
@@ -309,6 +322,7 @@ export default function TalDetailPage() {
               <StatBox label="Replies" value={tal.tg_replies.toLocaleString()} />
               <StatBox label="Booked" value={tal.tg_meetings} />
               <StatBox label="Held" value={tal.tg_held_meetings} />
+              <StatBox label="QL" value={tal.tg_qualified_leads || 0} />
               <StatBox label="Reply rate" value={pct(tal.tg_reply_rate)} />
               <StatBox label="Reply → Booked" value={calcRate(tal.tg_meetings, tal.tg_replies)} />
               <StatBox label="Booked → Held" value={calcRate(tal.tg_held_meetings, tal.tg_meetings)} />

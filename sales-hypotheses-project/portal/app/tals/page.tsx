@@ -16,25 +16,30 @@ type TalRow = {
   email_reply_rate: number | null;
   email_meetings: number;
   email_held_meetings: number;
+  email_qualified_leads: number;
   li_invited: number;
   li_accepted: number;
   li_replies: number;
   li_accept_rate: number | null;
   li_meetings: number;
   li_held_meetings: number;
+  li_qualified_leads: number;
   app_invitations: number;
   app_touches: number;
   app_replies: number;
   app_reply_rate: number | null;
   app_meetings: number;
   app_held_meetings: number;
+  app_qualified_leads: number;
   tg_touches: number;
   tg_replies: number;
   tg_reply_rate: number | null;
   tg_meetings: number;
   tg_held_meetings: number;
+  tg_qualified_leads: number;
   total_meetings: number;
   total_held_meetings: number;
+  total_qualified_leads: number;
 };
 
 type UnlinkedCampaign = {
@@ -223,6 +228,11 @@ export default function TalsPage() {
                             {tal.total_held_meetings} held meetings
                           </div>
                         )}
+                        {(tal.total_qualified_leads || 0) > 0 && (
+                          <div className="statusBadge" style={{ background: "rgba(167, 139, 250, 0.16)", color: "#a78bfa" }}>
+                            {tal.total_qualified_leads} QL
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -236,6 +246,7 @@ export default function TalsPage() {
                           { value: num(tal.email_replies), label: "replies" },
                           { value: num(tal.email_meetings), label: "booked" },
                           { value: num(tal.email_held_meetings), label: "held" },
+                          { value: num(tal.email_qualified_leads || 0), label: "QL" },
                           { value: pct(tal.email_reply_rate), label: "reply rate" },
                           { value: calcRate(tal.email_meetings, tal.email_replies), label: "reply → booked" },
                           { value: calcRate(tal.email_held_meetings, tal.email_meetings), label: "booked → held" },
@@ -251,6 +262,7 @@ export default function TalsPage() {
                           { value: num(tal.li_replies), label: "replies" },
                           { value: num(tal.li_meetings), label: "booked" },
                           { value: num(tal.li_held_meetings), label: "held" },
+                          { value: num(tal.li_qualified_leads || 0), label: "QL" },
                           { value: pct(tal.li_accept_rate), label: "accept rate" },
                           { value: calcRate(tal.li_replies, tal.li_accepted), label: "reply rate" },
                           { value: calcRate(tal.li_meetings, tal.li_replies), label: "reply → booked" },
@@ -267,6 +279,7 @@ export default function TalsPage() {
                           { value: num(tal.app_replies), label: "replies" },
                           { value: num(tal.app_meetings), label: "booked" },
                           { value: num(tal.app_held_meetings), label: "held" },
+                          { value: num(tal.app_qualified_leads || 0), label: "QL" },
                           { value: pct(tal.app_reply_rate), label: "reply rate" },
                           { value: calcRate(tal.app_meetings, tal.app_replies), label: "reply → booked" },
                           { value: calcRate(tal.app_held_meetings, tal.app_meetings), label: "booked → held" },
@@ -281,6 +294,7 @@ export default function TalsPage() {
                           { value: num(tal.tg_replies), label: "replies" },
                           { value: num(tal.tg_meetings), label: "booked" },
                           { value: num(tal.tg_held_meetings), label: "held" },
+                          { value: num(tal.tg_qualified_leads || 0), label: "QL" },
                           { value: pct(tal.tg_reply_rate), label: "reply rate" },
                           { value: calcRate(tal.tg_meetings, tal.tg_replies), label: "reply → booked" },
                           { value: calcRate(tal.tg_held_meetings, tal.tg_meetings), label: "booked → held" },
