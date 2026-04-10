@@ -173,6 +173,11 @@ type TalOption = {
   tg_held_meetings: number;
   total_meetings: number;
   total_held_meetings: number;
+  email_qualified_leads: number;
+  li_qualified_leads: number;
+  app_qualified_leads: number;
+  tg_qualified_leads: number;
+  total_qualified_leads: number;
 };
 
 type MatrixLibraryRow = {
@@ -1013,7 +1018,7 @@ export default function HypothesesRegistryPage() {
       supabase.from("sales_company_scales").select("id,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(500),
       supabase.from("sales_icp_company_profiles").select("id,vertical_name,sub_vertical,region,size_bucket,tech_stack,notes").order("vertical_name", { ascending: true }).order("sub_vertical", { ascending: true }).limit(500),
       supabase.from("sales_channels").select("slug,name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(200),
-      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_invitations,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings").order("name", { ascending: true }).limit(500),
+      supabase.from("tal_analytics_v").select("id,name,criteria,description,email_sent,email_replies,email_reply_rate,email_meetings,email_held_meetings,li_invited,li_accepted,li_replies,li_accept_rate,li_meetings,li_held_meetings,app_invitations,app_touches,app_replies,app_reply_rate,app_meetings,app_held_meetings,tg_touches,tg_replies,tg_reply_rate,tg_meetings,tg_held_meetings,total_meetings,total_held_meetings,email_qualified_leads,li_qualified_leads,app_qualified_leads,tg_qualified_leads,total_qualified_leads").order("name", { ascending: true }).limit(500),
       supabase.from("hypothesis_owners").select("id,name").order("name", { ascending: true }).limit(50)
     ]);
     if (!verticalRes.error) setVerticals((verticalRes.data ?? []) as VerticalOption[]);
@@ -1943,16 +1948,16 @@ export default function HypothesesRegistryPage() {
               {selectedTal && (selectedTal.total_meetings > 0 || selectedTal.email_sent > 0 || selectedTal.li_invited > 0 || selectedTal.app_invitations > 0 || selectedTal.app_touches > 0 || selectedTal.tg_touches > 0) && (
                 <div className="helpInline" style={{ marginTop: 4, lineHeight: 1.6 }}>
                   {(selectedTal.email_sent + selectedTal.email_replies + selectedTal.email_meetings + selectedTal.email_held_meetings > 0) && (
-                    <div><strong>Email:</strong> {selectedTal.email_sent} sent, {selectedTal.email_replies} replies ({selectedTal.email_reply_rate ?? 0}%), {selectedTal.email_meetings} booked{selectedTal.email_replies > 0 ? ` (${Math.round((selectedTal.email_meetings / selectedTal.email_replies) * 100)}%)` : ""}, {selectedTal.email_held_meetings} held{selectedTal.email_meetings > 0 ? ` (${Math.round((selectedTal.email_held_meetings / selectedTal.email_meetings) * 100)}%)` : ""}</div>
+                    <div><strong>Email:</strong> {selectedTal.email_sent} sent, {selectedTal.email_replies} replies ({selectedTal.email_reply_rate ?? 0}%), {selectedTal.email_meetings} booked{selectedTal.email_replies > 0 ? ` (${Math.round((selectedTal.email_meetings / selectedTal.email_replies) * 100)}%)` : ""}, {selectedTal.email_held_meetings} held{selectedTal.email_meetings > 0 ? ` (${Math.round((selectedTal.email_held_meetings / selectedTal.email_meetings) * 100)}%)` : ""}, {selectedTal.email_qualified_leads} QL</div>
                   )}
                   {(selectedTal.li_invited + selectedTal.li_accepted + selectedTal.li_replies + selectedTal.li_meetings + selectedTal.li_held_meetings > 0) && (
-                    <div><strong>LinkedIn:</strong> {selectedTal.li_invited} invited, {selectedTal.li_accepted} accepted ({selectedTal.li_accept_rate ?? 0}%), {selectedTal.li_replies} replies{selectedTal.li_accepted > 0 ? ` (${Math.round((selectedTal.li_replies / selectedTal.li_accepted) * 100)}%)` : ""}, {selectedTal.li_meetings} booked{selectedTal.li_replies > 0 ? ` (${Math.round((selectedTal.li_meetings / selectedTal.li_replies) * 100)}%)` : ""}, {selectedTal.li_held_meetings} held{selectedTal.li_meetings > 0 ? ` (${Math.round((selectedTal.li_held_meetings / selectedTal.li_meetings) * 100)}%)` : ""}</div>
+                    <div><strong>LinkedIn:</strong> {selectedTal.li_invited} invited, {selectedTal.li_accepted} accepted ({selectedTal.li_accept_rate ?? 0}%), {selectedTal.li_replies} replies{selectedTal.li_accepted > 0 ? ` (${Math.round((selectedTal.li_replies / selectedTal.li_accepted) * 100)}%)` : ""}, {selectedTal.li_meetings} booked{selectedTal.li_replies > 0 ? ` (${Math.round((selectedTal.li_meetings / selectedTal.li_replies) * 100)}%)` : ""}, {selectedTal.li_held_meetings} held{selectedTal.li_meetings > 0 ? ` (${Math.round((selectedTal.li_held_meetings / selectedTal.li_meetings) * 100)}%)` : ""}, {selectedTal.li_qualified_leads} QL</div>
                   )}
                   {(selectedTal.app_invitations + selectedTal.app_touches + selectedTal.app_replies + selectedTal.app_meetings + selectedTal.app_held_meetings > 0) && (
-                    <div><strong>App:</strong> {selectedTal.app_invitations} invitations, {selectedTal.app_touches} touches, {selectedTal.app_replies} replies ({selectedTal.app_reply_rate ?? 0}%), {selectedTal.app_meetings} booked{selectedTal.app_replies > 0 ? ` (${Math.round((selectedTal.app_meetings / selectedTal.app_replies) * 100)}%)` : ""}, {selectedTal.app_held_meetings} held{selectedTal.app_meetings > 0 ? ` (${Math.round((selectedTal.app_held_meetings / selectedTal.app_meetings) * 100)}%)` : ""}</div>
+                    <div><strong>App:</strong> {selectedTal.app_invitations} invitations, {selectedTal.app_touches} touches, {selectedTal.app_replies} replies ({selectedTal.app_reply_rate ?? 0}%), {selectedTal.app_meetings} booked{selectedTal.app_replies > 0 ? ` (${Math.round((selectedTal.app_meetings / selectedTal.app_replies) * 100)}%)` : ""}, {selectedTal.app_held_meetings} held{selectedTal.app_meetings > 0 ? ` (${Math.round((selectedTal.app_held_meetings / selectedTal.app_meetings) * 100)}%)` : ""}, {selectedTal.app_qualified_leads} QL</div>
                   )}
                   {(selectedTal.tg_touches + selectedTal.tg_replies + selectedTal.tg_meetings + selectedTal.tg_held_meetings > 0) && (
-                    <div><strong>Telegram:</strong> {selectedTal.tg_touches} touches, {selectedTal.tg_replies} replies ({selectedTal.tg_reply_rate ?? 0}%), {selectedTal.tg_meetings} booked{selectedTal.tg_replies > 0 ? ` (${Math.round((selectedTal.tg_meetings / selectedTal.tg_replies) * 100)}%)` : ""}, {selectedTal.tg_held_meetings} held{selectedTal.tg_meetings > 0 ? ` (${Math.round((selectedTal.tg_held_meetings / selectedTal.tg_meetings) * 100)}%)` : ""}</div>
+                    <div><strong>Telegram:</strong> {selectedTal.tg_touches} touches, {selectedTal.tg_replies} replies ({selectedTal.tg_reply_rate ?? 0}%), {selectedTal.tg_meetings} booked{selectedTal.tg_replies > 0 ? ` (${Math.round((selectedTal.tg_meetings / selectedTal.tg_replies) * 100)}%)` : ""}, {selectedTal.tg_held_meetings} held{selectedTal.tg_meetings > 0 ? ` (${Math.round((selectedTal.tg_held_meetings / selectedTal.tg_meetings) * 100)}%)` : ""}, {selectedTal.tg_qualified_leads} QL</div>
                   )}
                 </div>
               )}
@@ -2098,6 +2103,7 @@ export default function HypothesesRegistryPage() {
                       <th>Disqualifiers</th>
                       <th>Booked</th>
                       <th>Held</th>
+                      <th>QL</th>
                       <th>Priority</th>
                       <th>Decision</th>
                       <th>Status</th>
@@ -2121,6 +2127,7 @@ export default function HypothesesRegistryPage() {
                             <td>{preview(row.disqualifiers)}</td>
                             <td className="mono">{row.tal_id ? (talById.get(row.tal_id)?.total_meetings ?? 0) : "—"}</td>
                             <td className="mono">{row.tal_id ? (talById.get(row.tal_id)?.total_held_meetings ?? 0) : "—"}</td>
+                            <td className="mono">{row.tal_id ? (talById.get(row.tal_id)?.total_qualified_leads ?? 0) : "—"}</td>
                             <td>{priorityValueToLabel(priorityScoreToValue(row.priority))}</td>
                             <td>{row.decision ? formatLabel(row.decision) : "—"}</td>
                             <td><span className="tag">{formatLabel(row.status)}</span></td>
@@ -2131,7 +2138,7 @@ export default function HypothesesRegistryPage() {
                     })}
                     {!filteredRows.length ? (
                       <tr>
-                        <td colSpan={15} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
+                        <td colSpan={16} className="muted2">{rowsLoading ? "Loading..." : "No hypotheses match the current filters."}</td>
                       </tr>
                     ) : null}
                   </tbody>
